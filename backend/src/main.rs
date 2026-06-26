@@ -1,4 +1,6 @@
+mod coordinator;
 mod dataflows;
+mod external;
 mod mock;
 mod models;
 mod runtime;
@@ -23,10 +25,16 @@ async fn main() {
         .route("/api/dataflows/:id/nodes", get(dataflow_nodes))
         .route("/api/dataflows/:id/logs", get(dataflow_logs))
         .route("/api/dataflows/:id/graph", get(dataflow_graph))
+        .route("/api/dataflows/:id/start", post(dataflow_start))
+        .route("/api/dataflows/:id/stop", post(dataflow_stop))
+        .route("/api/dataflows/:id/restart", post(dataflow_restart))
         .route("/api/runtime/status", get(runtime_status))
         .route("/api/runtime/logs", get(runtime_logs))
         .route("/api/runtime/start", post(runtime_start))
         .route("/api/runtime/stop", post(runtime_stop))
+        .route("/api/coordinator/status", get(coordinator_status))
+        .route("/api/dviz/status", get(dviz_status))
+        .route("/api/moveit/status", get(moveit_status))
         .with_state(runtime)
         .layer(CorsLayer::permissive());
 
@@ -83,7 +91,47 @@ async fn health() -> Json<serde_json::Value> {
 }
 
 async fn system_status() -> Json<models::SystemStatus> {
-    Json(mock::system_status())
+    let coordinator = coordinator::query_coordinator().await;
+    if coordinator.connected {
+        Json(models::SystemStatus {
+            coordinator: "connected".to_string(),
+            daemon: "healthy".to_string(),
+            version: coordinator.version,
+            running_dataflows: coordinator.running_dataflows,
+            active_nodes: coordinator.active_nodes,
+            error_count: 0,
+        })
+    } else {
+        Json(mock::system_status())
+    }
+}
+
+async fn coordinator_status() -> Json<models::CoordinatorStatus> {
+    Json(coordinator::query_coordinator().await)
+}
+
+async fn dviz_status() -> Json<models::DvizStatus> {
+    Json(external::query_dviz())
+}
+
+async fn moveit_status() -> Json<models::MoveitStatus> {
+    let mut status = external::query_moveit();
+
+    // Cross-reference with running dataflows: check if moveit nodes are active
+    let coordinator = coordinator::query_coordinator().await;
+    for df in &coordinator.dataflows {
+        if df.name.contains("moveit") || df.name.contains("motion") {
+            status.running = df.status == "running";
+            if status.running {
+                status.message = format!(
+                    "dora-moveit2 dataflow '{}' is running with {} nodes.",
+                    df.name, df.nodes
+                );
+            }
+        }
+    }
+
+    Json(status)
 }
 
 async fn dataflows() -> Result<Json<Vec<models::DataflowSummary>>, ApiError> {
@@ -134,6 +182,39 @@ async fn runtime_start(
 
 async fn runtime_stop(State(runtime): State<runtime::RuntimeHandle>) -> Json<models::RuntimeState> {
     Json(runtime.stop().await)
+}
+
+async fn dataflow_start(
+    Path(id): Path<String>,
+    State(runtime): State<runtime::RuntimeHandle>,
+) -> Result<Json<models::RuntimeState>, ApiError> {
+    let dataflow = dataflows::resolve_dataflow(&id).map_err(ApiError::from)?;
+    Ok(Json(
+        runtime
+            .start_dataflow(dataflow.id, dataflow.path, dataflow.relative_path)
+            .await,
+    ))
+}
+
+async fn dataflow_stop(
+    Path(id): Path<String>,
+    State(runtime): State<runtime::RuntimeHandle>,
+) -> Result<Json<models::RuntimeState>, ApiError> {
+    dataflows::resolve_dataflow(&id).map_err(ApiError::from)?;
+    Ok(Json(runtime.stop().await))
+}
+
+async fn dataflow_restart(
+    Path(id): Path<String>,
+    State(runtime): State<runtime::RuntimeHandle>,
+) -> Result<Json<models::RuntimeState>, ApiError> {
+    let dataflow = dataflows::resolve_dataflow(&id).map_err(ApiError::from)?;
+    runtime.stop().await;
+    Ok(Json(
+        runtime
+            .start_dataflow(dataflow.id, dataflow.path, dataflow.relative_path)
+            .await,
+    ))
 }
 
 async fn shutdown_signal() {

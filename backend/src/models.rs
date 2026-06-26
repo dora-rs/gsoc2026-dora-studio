@@ -6,20 +6,64 @@ pub struct ApiError {
     pub error: String,
 }
 
+// --- Coordinator ---
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoordinatorStatus {
+    pub connected: bool,
+    pub version: String,
+    pub running_dataflows: u32,
+    pub active_nodes: u32,
+    pub dataflows: Vec<CoordinatorDataflow>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoordinatorDataflow {
+    pub id: String,
+    pub name: String,
+    pub status: String,
+    pub nodes: u32,
+}
+
+// --- dviz ---
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DvizStatus {
+    pub installed: bool,
+    pub running: bool,
+    pub binary_path: Option<String>,
+    pub message: String,
+}
+
+// --- dora-moveit2 ---
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveitStatus {
+    pub installed: bool,
+    pub running: bool,
+    pub message: String,
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeState {
     pub status: String,
     pub pid: Option<u32>,
     pub last_message: String,
+    pub dataflow_id: Option<String>,
+    pub dataflow_path: Option<String>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemStatus {
-    pub coordinator: &'static str,
-    pub daemon: &'static str,
-    pub version: &'static str,
+    pub coordinator: String,
+    pub daemon: String,
+    pub version: String,
     pub running_dataflows: u32,
     pub active_nodes: u32,
     pub error_count: u32,
