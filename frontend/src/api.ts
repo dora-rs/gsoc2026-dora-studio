@@ -74,7 +74,13 @@ export type RuntimeStateResponse = {
   dataflowPath: string | null
 }
 
-const API_BASE_URL = 'http://127.0.0.1:3001/api'
+const DEFAULT_API_BASE_URL = 'http://127.0.0.1:3001/api'
+const configuredApiBaseUrl = import.meta.env.VITE_DORA_STUDIO_API_URL as string | undefined
+const API_BASE_URL = normalizeApiBaseUrl(configuredApiBaseUrl || DEFAULT_API_BASE_URL)
+
+function normalizeApiBaseUrl(value: string) {
+  return value.replace(/\/+$/, '')
+}
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, init)

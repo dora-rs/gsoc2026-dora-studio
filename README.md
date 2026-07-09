@@ -1,2 +1,130 @@
-# gsoc2026-dora-studio
-GSOC 2026 | GUI tool for visualizing  and debug DORA applications
+# dora-studio
+
+A GSoC 2026 prototype for visualizing, running, and debugging DORA applications.
+
+The current prototype focuses on a practical Studio workflow: discover local dataflows, inspect their graph structure, start and stop a selected dataflow, monitor runtime state, review logs, and preview future robotics visualization and motion-planning panels.
+
+## Current Scope
+
+Implemented areas:
+
+- Dashboard with coordinator status, runtime summary cards, recent events, and roadmap panels.
+- Dataflow Explorer for local `dataflow.yml` discovery, graph rendering, node inspection, and parser diagnostics.
+- Run & Monitor page for selecting a discovered dataflow and controlling it through the backend runtime bridge.
+- Logs & Events page with runtime log polling, log-level grouping, raw stream view, and connected/fallback states.
+- Visualization page with a dviz-oriented 3D viewport layout and display property panels.
+- Motion Planner page with robot state, planning scene, goal configuration, trajectory preview, and IK solver panels.
+- Light/dark theme toggle with local preference persistence.
+
+The Visualization and Motion Planner pages are product-style layouts prepared for Phase 2 integration. They do not yet stream real 3D data or execute motion planning commands.
+
+## Repository Layout
+
+```text
+backend/   Rust Axum API server for dataflow discovery, runtime control, logs, and external tool status checks
+frontend/  Vue 3 + Vite frontend for the Studio prototype
+examples/  Example DORA dataflows used by the prototype
+```
+
+## Prerequisites
+
+Required:
+
+- Rust toolchain with Cargo
+- Node.js and npm
+- DORA CLI available on `PATH` for runtime control
+
+Optional:
+
+- `dviz` for visualization status detection
+- `dora-moveit2` for motion-planning status detection
+
+The application remains usable without optional tools because the frontend shows fallback states when integrations are unavailable.
+
+## Run Locally
+
+Start the backend API server:
+
+```bash
+cargo run --manifest-path backend/Cargo.toml
+```
+
+The backend listens on `127.0.0.1:3001` by default. To use another address:
+
+```bash
+DORA_STUDIO_BACKEND_ADDR=127.0.0.1:4001 cargo run --manifest-path backend/Cargo.toml
+```
+
+Install frontend dependencies if needed:
+
+```bash
+npm --prefix frontend install
+```
+
+Start the frontend dev server:
+
+```bash
+npm --prefix frontend run dev
+```
+
+The frontend uses `http://127.0.0.1:3001/api` by default. To point it at a different backend API URL:
+
+```bash
+VITE_DORA_STUDIO_API_URL=http://127.0.0.1:4001/api npm --prefix frontend run dev
+```
+
+## Demo Walkthrough
+
+Recommended walkthrough order:
+
+1. Open Dashboard to show the overall Studio concept, coordinator status, recent events, and future workflow panels.
+2. Open Dataflow Explorer to select a discovered dataflow and inspect its graph, nodes, edges, and diagnostics.
+3. Open Run & Monitor to start the selected dataflow, refresh runtime status, and inspect node metrics.
+4. Open Logs & Events to review grouped info, warning, and error logs from the runtime API or fallback data.
+5. Open Visualization to show the planned dviz-style display controls and 3D viewport structure.
+6. Open Motion Planner to show the planned dora-moveit2 control surface for robot state, scene objects, goals, trajectories, and IK.
+7. Use the sidebar theme toggle to verify light and dark presentation.
+8. Use Export report to download a Markdown snapshot of the current prototype state.
+
+## Backend API Surface
+
+```text
+GET    /api/health
+GET    /api/system/status
+GET    /api/coordinator/status
+GET    /api/dviz/status
+GET    /api/moveit/status
+GET    /api/dataflows
+GET    /api/dataflows/:id/definition
+GET    /api/dataflows/:id/graph
+GET    /api/dataflows/:id/nodes
+GET    /api/dataflows/:id/logs
+POST   /api/dataflows/:id/start
+POST   /api/dataflows/:id/stop
+POST   /api/dataflows/:id/restart
+GET    /api/runtime/status
+GET    /api/runtime/logs
+POST   /api/runtime/start
+POST   /api/runtime/stop
+```
+
+## Validation
+
+Run the standard checks before preparing a PR:
+
+```bash
+cargo fmt --manifest-path backend/Cargo.toml --check
+cargo test --manifest-path backend/Cargo.toml
+npm --prefix frontend run build
+```
+
+For UI changes, also run the backend and frontend locally, then walk through the six Studio pages in a browser.
+
+## Current Limitations
+
+- Runtime control still uses a local `dora run` subprocess bridge.
+- Coordinator integration currently uses CLI-backed status queries rather than a direct WebSocket client.
+- Node CPU, memory, and pending-message values are still prototype metrics.
+- dviz status detection is process/install-level; real Zenoh data forwarding is planned for Phase 2.
+- dora-moveit2 status detection is package/dataflow-level; real planning and execution endpoints are planned for Phase 2.
+- The current graph parser supports the subset of DORA YAML needed by the example flows and reports diagnostics for unsupported top-level sections.
