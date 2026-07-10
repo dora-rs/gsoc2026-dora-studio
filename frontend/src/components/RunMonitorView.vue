@@ -20,9 +20,9 @@
       <p v-if="apiError" class="muted">{{ apiError }}</p>
       <div class="control-row">
         <button class="secondary" @click="refreshRuntime">刷新状态</button>
-        <button @click="startDataflow" :disabled="runtime.status === 'running'">启动示例</button>
-        <button class="secondary" @click="restartDataflow">重启示例</button>
-        <button class="danger-button" @click="stopDataflow" :disabled="runtime.status !== 'running'">停止示例</button>
+        <button @click="startDataflow" :disabled="runtime.status === 'running'">启动 dataflow</button>
+        <button class="secondary" @click="restartDataflow">重启 dataflow</button>
+        <button class="danger-button" @click="stopDataflow" :disabled="runtime.status !== 'running'">停止 dataflow</button>
       </div>
     </div>
 
@@ -32,8 +32,16 @@
         <strong>{{ runtimeStatusText }}</strong>
         <small>{{ runtime.pid ? `PID ${runtime.pid}` : '无运行进程' }}</small>
       </article>
-      <article class="metric-card large-metric"><span>总 CPU</span><strong>113%</strong><small>当前仍为 mock 指标</small></article>
-      <article class="metric-card warning large-metric"><span>Pending 消息</span><strong>30</strong><small>detector 队列偏高</small></article>
+      <article class="metric-card large-metric">
+        <span>总 CPU</span>
+        <strong>{{ totalCpu }}%</strong>
+        <small>{{ runtime.status === 'running' ? '当前节点合计' : '未运行时为 0' }}</small>
+      </article>
+      <article :class="['metric-card', totalPending > 0 ? 'warning' : 'success', 'large-metric']">
+        <span>Pending 消息</span>
+        <strong>{{ totalPending }}</strong>
+        <small>{{ pendingSummary }}</small>
+      </article>
       <article class="metric-card large-metric"><span>运行消息</span><strong>{{ runtime.status }}</strong><small>{{ runtime.lastMessage }}</small></article>
     </div>
 
@@ -133,6 +141,17 @@ const runtimeStatusText = computed(() => {
   if (runtime.value.status === 'running') return '运行中'
   if (runtime.value.status === 'failed') return '失败'
   return '已停止'
+})
+const activeMetricNodes = computed(() => (runtime.value.status === 'running' ? nodes.value : []))
+const totalCpu = computed(() => activeMetricNodes.value.reduce((sum, node) => sum + node.cpu, 0))
+const totalPending = computed(() => activeMetricNodes.value.reduce((sum, node) => sum + node.pending, 0))
+const pendingSummary = computed(() => {
+  const highest = activeMetricNodes.value.reduce<NodeMetricsResponse | null>(
+    (current, node) => (current === null || node.pending > current.pending ? node : current),
+    null,
+  )
+  if (!highest || highest.pending === 0) return '无积压消息'
+  return `${highest.label} 队列最高`
 })
 
 const statusText: Record<NodeStatus, string> = {

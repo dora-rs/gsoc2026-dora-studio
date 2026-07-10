@@ -50,7 +50,7 @@
           <button class="secondary language-toggle" @click="toggleLocale">
             {{ t.app.languageLabel }}
           </button>
-          <button>{{ t.app.exportReport }}</button>
+          <button @click="downloadDemoReport">{{ t.app.exportReport }}</button>
         </div>
       </header>
 
@@ -116,6 +116,45 @@ async function pollStatus() {
   }
 }
 
+function downloadDemoReport() {
+  const lines = [
+    '# dora-studio prototype report',
+    '',
+    `Generated at: ${new Date().toISOString()}`,
+    `Current view: ${currentItem.value.title}`,
+    `Coordinator: ${coordinatorConnected.value ? 'connected' : 'not connected'}`,
+    `Running dataflows: ${runningFlows.value}`,
+    `Runtime: ${runtimeActive.value ? `running, PID ${runtimePid.value}` : 'stopped'}`,
+    '',
+    '## Implemented prototype areas',
+    '',
+    '- Dashboard overview and recent runtime signals',
+    '- Dataflow discovery, graph rendering, node inspection, and diagnostics',
+    '- Selected-dataflow runtime control through the backend bridge',
+    '- Grouped runtime logs and raw log stream view',
+    '- dviz-oriented visualization layout prepared for Phase 2 data forwarding',
+    '- dora-moveit2-oriented motion planning layout prepared for Phase 2 APIs',
+    '',
+    '## Validation commands',
+    '',
+    '```bash',
+    'cargo fmt --manifest-path backend/Cargo.toml --check',
+    'cargo test --manifest-path backend/Cargo.toml',
+    'npm --prefix frontend run build',
+    '```',
+  ]
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'dora-studio-prototype-report.md'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
 onMounted(() => {
   const saved = localStorage.getItem('dora-studio-theme')
   if (saved === 'dark') {
@@ -140,6 +179,6 @@ const navItems = computed(() => [
   { id: 'motion' as ViewId, icon: '06', ...t.value.nav.motion },
 ])
 
-const activeView = ref<ViewId>('explorer')
+const activeView = ref<ViewId>('dashboard')
 const currentItem = computed(() => navItems.value.find((item) => item.id === activeView.value) ?? navItems.value[0])
 </script>
