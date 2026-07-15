@@ -183,6 +183,39 @@ export type DvizStatusResponse = {
   message: string
 }
 
+export type DvizTopicResponse = {
+  name: string
+  dataType: string
+  source: string
+  status: string
+  messageRateHz: number
+  lastSeen: string
+  summary: string
+}
+
+export type DvizTopicsResponse = {
+  source: string
+  message: string
+  topics: DvizTopicResponse[]
+}
+
+export type DvizDisplayResponse = {
+  id: string
+  name: string
+  dataType: string
+  enabled: boolean
+  sourceTopic: string | null
+  status: string
+  summary: string
+  color: string
+}
+
+export type DvizDisplaysResponse = {
+  source: string
+  message: string
+  displays: DvizDisplayResponse[]
+}
+
 export type MoveitStatusResponse = {
   installed: boolean
   running: boolean
@@ -195,6 +228,14 @@ export function getCoordinatorStatus(fallback: CoordinatorStatusResponse) {
 
 export function getDvizStatus(fallback: DvizStatusResponse) {
   return withFallback('/dviz/status', fallback)
+}
+
+export function getDvizTopics(fallback: DvizTopicsResponse) {
+  return withFallback('/dviz/topics', fallback)
+}
+
+export function getDvizDisplays(fallback: DvizDisplaysResponse) {
+  return withFallback('/dviz/displays', fallback)
 }
 
 export function getMoveitStatus(fallback: MoveitStatusResponse) {

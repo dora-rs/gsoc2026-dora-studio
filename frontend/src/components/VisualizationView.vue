@@ -3,8 +3,8 @@
     <aside class="viz-panel viz-left">
       <div class="viz-panel-header">
         <h2>Data Sources</h2>
-        <span :class="['pill', dviz.running ? 'success' : 'stopped']">
-          {{ dviz.running ? 'dviz live' : 'stopped' }}
+        <span :class="['pill', backendConnected ? 'success' : 'stopped']">
+          {{ visualizationDataLabel }}
         </span>
       </div>
 
@@ -14,7 +14,7 @@
 
       <div class="display-list">
         <label
-          v-for="display in displays"
+          v-for="display in displayData.displays"
           :key="display.id"
           :class="['display-item', { enabled: display.enabled }]"
         >
@@ -24,22 +24,29 @@
             <strong>{{ display.name }}</strong>
             <small>{{ display.summary }}</small>
           </div>
-          <span class="display-status">{{ display.enabled ? 'ON' : 'OFF' }}</span>
+          <span :class="['display-status', display.status]">{{ display.status }}</span>
         </label>
       </div>
 
       <div class="viz-section">
-        <h3>Topic Preview</h3>
-        <div class="topic-preview-box" v-for="topic in mockTopics" :key="topic.name">
-          <code>{{ topic.name }}</code>
-          <span>{{ topic.summary }}</span>
+        <div class="viz-section-header">
+          <h3>Topic Preview</h3>
+          <span class="viz-section-source">{{ topicData.source }}</span>
+        </div>
+        <div class="topic-preview-box" v-for="topic in topicData.topics" :key="topic.name">
+          <div class="topic-title">
+            <code>{{ topic.name }}</code>
+            <span :class="['topic-status', topic.status]">{{ topic.status }}</span>
+          </div>
+          <span>{{ topic.dataType }} · {{ topic.summary }}</span>
+          <small>{{ topic.source }} · {{ topic.messageRateHz }} Hz · {{ topic.lastSeen }}</small>
         </div>
       </div>
 
       <div class="viz-status-row">
-        <span class="status-dot" :class="dviz.running ? 'on' : 'off'"></span>
-        <span>{{ dviz.running ? 'ZENOH connected' : 'ZENOH disconnected' }}</span>
-        <span class="viz-version">{{ dviz.installed ? 'dviz detected' : 'dviz not found' }}</span>
+        <span class="status-dot" :class="backendConnected ? 'on' : 'off'"></span>
+        <span>{{ connectionLabel }}</span>
+        <span class="viz-version">{{ topicData.message }}</span>
       </div>
     </aside>
 
@@ -53,8 +60,7 @@
         <div class="viewport-center">
           <div class="viewport-icon">R</div>
           <strong>Rerun Web Viewer</strong>
-          <p>3D 可视化视口将在 Week 8 接入 Rerun iframe</p>
-          <span class="viewport-hint">点云 · TF 帧 · 机器人模型 · 激光雷达 · 标记</span>
+          <span class="viewport-hint">{{ viewportHint }}</span>
         </div>
       </div>
       <div class="viewport-controls">
@@ -92,7 +98,6 @@
               <span class="color-swatch" :style="{ background: prop.value }"></span>
               <span>{{ prop.value }}</span>
             </div>
-            <span v-else class="prop-value disabled">{{ prop.value }}</span>
           </div>
         </div>
       </div>
@@ -101,37 +106,139 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { getDvizStatus, type DvizStatusResponse } from '../api'
+import { computed, onMounted, ref } from 'vue'
+import {
+  getDvizDisplays,
+  getDvizStatus,
+  getDvizTopics,
+  type ApiSource,
+  type DvizDisplaysResponse,
+  type DvizStatusResponse,
+  type DvizTopicsResponse,
+} from '../api'
 
-const dviz = ref<DvizStatusResponse>({
-  installed: false, running: false, binaryPath: null,
+const fallbackDvizStatus: DvizStatusResponse = {
+  installed: false,
+  running: false,
+  binaryPath: null,
   message: 'Backend API is not connected.',
+}
+
+const fallbackTopicData: DvizTopicsResponse = {
+  source: 'frontend fallback',
+  message: 'Backend API is not connected; showing frontend fallback topics.',
+  topics: [
+    {
+      name: '/world/points',
+      dataType: 'PointCloud',
+      source: 'frontend fallback',
+      status: 'ready',
+      messageRateHz: 12,
+      lastSeen: 'demo frame',
+      summary: '1,024 pts',
+    },
+    {
+      name: '/world/tf',
+      dataType: 'Transform3D',
+      source: 'frontend fallback',
+      status: 'ready',
+      messageRateHz: 30,
+      lastSeen: 'demo frame',
+      summary: '5 frames',
+    },
+  ],
+}
+
+const fallbackDisplayData: DvizDisplaysResponse = {
+  source: 'frontend fallback',
+  message: 'Backend API is not connected; showing frontend fallback displays.',
+  displays: [
+    {
+      id: 'grid',
+      name: 'Grid',
+      dataType: 'Viewport',
+      enabled: true,
+      sourceTopic: null,
+      status: 'ready',
+      summary: 'Ground grid · 10×10',
+      color: 'gray',
+    },
+    {
+      id: 'axes',
+      name: 'Axes',
+      dataType: 'Viewport',
+      enabled: true,
+      sourceTopic: null,
+      status: 'ready',
+      summary: 'RGB axes · 1.0m',
+      color: 'red',
+    },
+    {
+      id: 'tf',
+      name: 'TF Frames',
+      dataType: 'Transform3D',
+      enabled: true,
+      sourceTopic: '/world/tf',
+      status: 'ready',
+      summary: 'Frame tree · 5 active frames',
+      color: 'green',
+    },
+    {
+      id: 'pointcloud',
+      name: 'PointCloud',
+      dataType: 'PointCloud',
+      enabled: false,
+      sourceTopic: '/world/points',
+      status: 'idle',
+      summary: 'Point cloud data · color/intensity',
+      color: 'blue',
+    },
+  ],
+}
+
+const dviz = ref<DvizStatusResponse>(fallbackDvizStatus)
+const topicData = ref<DvizTopicsResponse>(fallbackTopicData)
+const displayData = ref<DvizDisplaysResponse>(fallbackDisplayData)
+const topicApiSource = ref<ApiSource>('fallback')
+const statusApiSource = ref<ApiSource>('fallback')
+const displayApiSource = ref<ApiSource>('fallback')
+
+const backendConnected = computed(() => (
+  statusApiSource.value === 'connected'
+  || topicApiSource.value === 'connected'
+  || displayApiSource.value === 'connected'
+))
+
+const visualizationDataLabel = computed(() => {
+  if (topicApiSource.value === 'connected' && topicData.value.source === 'demo') {
+    return 'backend demo'
+  }
+
+  if (topicApiSource.value === 'connected') {
+    return 'backend data'
+  }
+
+  return 'fallback data'
 })
 
-const displays = [
-  { id: 'grid', name: 'Grid', color: 'gray', enabled: true, summary: '地面网格 · 10×10' },
-  { id: 'axes', name: 'Axes', color: 'red', enabled: true, summary: 'RGB 坐标轴 · 1.0m' },
-  { id: 'tf', name: 'TF Frames', color: 'green', enabled: true, summary: '帧树 · 5 个活跃帧' },
-  { id: 'pointcloud', name: 'PointCloud', color: 'blue', enabled: false, summary: '点云数据 · 彩色/强度' },
-  { id: 'laserscan', name: 'LaserScan', color: 'orange', enabled: false, summary: '2D 激光 · 360°' },
-  { id: 'markers', name: 'Markers', color: 'purple', enabled: false, summary: '箭头/立方体/球体/文字' },
-  { id: 'robotmodel', name: 'RobotModel', color: 'cyan', enabled: false, summary: 'URDF 模型 · 关节联动' },
-]
+const connectionLabel = computed(() => {
+  if (!backendConnected.value) {
+    return 'backend unavailable'
+  }
 
-const mockTopics = [
-  { name: '/world/points', summary: 'PointCloud · 1,024 pts' },
-  { name: '/world/tf', summary: 'Transform3D · 5 frames' },
-]
+  if (statusApiSource.value === 'connected') {
+    return dviz.value.running ? 'dviz process detected' : 'backend connected'
+  }
 
-type PropItem =
-  | { type: 'slider'; label: string; value: string; min: string; max: string }
-  | { type: 'color'; label: string; value: string }
-  | { type: 'text'; label: string; value: string }
+  return 'backend partially connected'
+})
 
-type PropGroup = { name: string; color: string; props: PropItem[] }
+const viewportHint = computed(() => {
+  const enabledDisplays = displayData.value.displays.filter((display) => display.enabled).length
+  return `${enabledDisplays} displays · ${topicData.value.topics.length} topics · ${displayApiSource.value}`
+})
 
-const propertyGroups: PropGroup[] = [
+const propertyGroups = [
   {
     name: 'Grid', color: 'gray',
     props: [
@@ -159,10 +266,17 @@ const propertyGroups: PropGroup[] = [
 ]
 
 onMounted(async () => {
-  const result = await getDvizStatus({
-    installed: false, running: false, binaryPath: null,
-    message: 'Backend API is not connected.',
-  })
-  dviz.value = result.data
+  const [statusResult, topicResult, displayResult] = await Promise.all([
+    getDvizStatus(fallbackDvizStatus),
+    getDvizTopics(fallbackTopicData),
+    getDvizDisplays(fallbackDisplayData),
+  ])
+
+  dviz.value = statusResult.data
+  topicData.value = topicResult.data
+  displayData.value = displayResult.data
+  statusApiSource.value = statusResult.source
+  topicApiSource.value = topicResult.source
+  displayApiSource.value = displayResult.source
 })
 </script>
