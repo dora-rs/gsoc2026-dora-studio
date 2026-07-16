@@ -93,6 +93,8 @@ GET    /api/health
 GET    /api/system/status
 GET    /api/coordinator/status
 GET    /api/dviz/status
+GET    /api/dviz/topics
+GET    /api/dviz/displays
 GET    /api/moveit/status
 GET    /api/dataflows
 GET    /api/dataflows/:id/definition

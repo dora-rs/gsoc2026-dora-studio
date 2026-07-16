@@ -34,6 +34,8 @@ async fn main() {
         .route("/api/runtime/stop", post(runtime_stop))
         .route("/api/coordinator/status", get(coordinator_status))
         .route("/api/dviz/status", get(dviz_status))
+        .route("/api/dviz/topics", get(dviz_topics))
+        .route("/api/dviz/displays", get(dviz_displays))
         .route("/api/moveit/status", get(moveit_status))
         .with_state(runtime)
         .layer(CorsLayer::permissive());
@@ -112,6 +114,14 @@ async fn coordinator_status() -> Json<models::CoordinatorStatus> {
 
 async fn dviz_status() -> Json<models::DvizStatus> {
     Json(external::query_dviz())
+}
+
+async fn dviz_topics() -> Json<models::DvizTopicsResponse> {
+    Json(external::query_dviz_topics())
+}
+
+async fn dviz_displays() -> Json<models::DvizDisplaysResponse> {
+    Json(external::query_dviz_displays())
 }
 
 async fn moveit_status() -> Json<models::MoveitStatus> {

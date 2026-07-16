@@ -1250,47 +1250,6 @@ td span {
   margin: 0;
 }
 
-.display-label small {
-  color: #94a3b8;
-  font-size: 12px;
-}
-
-.display-status {
-  color: #94a3b8;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-}
-
-.viewport-center strong {
-  color: #e2e8f0;
-  font-size: 26px;
-  margin-top: 4px;
-}
-
-.viewport-center p {
-  color: #64748b;
-  font-size: 16px;
-  margin: 0;
-}
-
-.viewport-hint {
-  font-size: 14px;
-  padding: 8px 16px;
-}
-
-.viz-status-row {
-  font-size: 14px;
-}
-
-.topic-preview-box code {
-  font-size: 14px;
-}
-
-.topic-preview-box span {
-  font-size: 13px;
-}
-
 .viz-search input {
   background: #f3f6fb;
   border: 1px solid #dfe7f4;
@@ -1370,6 +1329,66 @@ td span {
   letter-spacing: 0.08em;
   margin: 0 0 12px;
   text-transform: uppercase;
+}
+
+.viz-section-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.viz-section-source {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.topic-title {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.topic-status {
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  padding: 3px 7px;
+  text-transform: uppercase;
+}
+
+.topic-status.ready {
+  background: rgb(34 197 94 / 18%);
+  color: #86efac;
+}
+
+.topic-status.idle {
+  background: rgb(148 163 184 / 18%);
+  color: #cbd5e1;
+}
+
+.topic-preview-box small {
+  color: #64748b;
+  display: block;
+  font-size: 10px;
+  margin-top: 6px;
+}
+
+.display-status.ready {
+  color: #16a34a;
+}
+
+.display-status.idle {
+  color: #94a3b8;
+}
+
+.display-status.unavailable {
+  color: #dc2626;
 }
 
 .topic-preview-box {

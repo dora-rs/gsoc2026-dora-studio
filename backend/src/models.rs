@@ -38,6 +38,47 @@ pub struct DvizStatus {
     pub message: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DvizTopicsResponse {
+    pub source: String,
+    pub message: String,
+    pub topics: Vec<DvizTopic>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DvizTopic {
+    pub name: String,
+    pub data_type: String,
+    pub source: String,
+    pub status: String,
+    pub message_rate_hz: f32,
+    pub last_seen: String,
+    pub summary: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DvizDisplaysResponse {
+    pub source: String,
+    pub message: String,
+    pub displays: Vec<DvizDisplay>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DvizDisplay {
+    pub id: String,
+    pub name: String,
+    pub data_type: String,
+    pub enabled: bool,
+    pub source_topic: Option<String>,
+    pub status: String,
+    pub summary: String,
+    pub color: String,
+}
+
 // --- dora-moveit2 ---
 
 #[derive(Serialize)]
