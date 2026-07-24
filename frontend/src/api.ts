@@ -216,6 +216,62 @@ export type DvizDisplaysResponse = {
   displays: DvizDisplayResponse[]
 }
 
+export type DvizSnapshotSummaryResponse = {
+  topicCount: number
+  readyTopicCount: number
+  idleTopicCount: number
+  displayCount: number
+  enabledDisplayCount: number
+}
+
+export type DvizSnapshotResponse = {
+  source: string
+  message: string
+  status: DvizStatusResponse
+  summary: DvizSnapshotSummaryResponse
+}
+
+export type RobotModuleResponse = {
+  id: string
+  name: string
+  kind: string
+  role: string
+  transport: string
+  frame: string
+  status: string
+  summary: string
+  required: boolean
+  sourceTopics: string[]
+  linkedDisplays: string[]
+}
+
+export type RobotWorkflowResponse = {
+  id: string
+  name: string
+  status: string
+  owner: string
+  summary: string
+}
+
+export type RobotProfile = {
+  id: string
+  name: string
+  family: string
+  summary: string
+  simulationOwner: string
+  viewportRole: string
+  modules: RobotModuleResponse[]
+  workflows: RobotWorkflowResponse[]
+  visualizationDisplays: string[]
+  planningCapabilities: string[]
+}
+
+export type RobotProfileResponse = {
+  source: string
+  message: string
+  profile: RobotProfile
+}
+
 export type MoveitStatusResponse = {
   installed: boolean
   running: boolean
@@ -236,6 +292,14 @@ export function getDvizTopics(fallback: DvizTopicsResponse) {
 
 export function getDvizDisplays(fallback: DvizDisplaysResponse) {
   return withFallback('/dviz/displays', fallback)
+}
+
+export function getDvizSnapshot(fallback: DvizSnapshotResponse) {
+  return withFallback('/dviz/snapshot', fallback)
+}
+
+export function getRobotProfile(fallback: RobotProfileResponse) {
+  return withFallback('/robot/profile', fallback)
 }
 
 export function getMoveitStatus(fallback: MoveitStatusResponse) {

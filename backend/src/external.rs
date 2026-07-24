@@ -1,5 +1,7 @@
 use crate::models::{
-    DvizDisplay, DvizDisplaysResponse, DvizStatus, DvizTopic, DvizTopicsResponse, MoveitStatus,
+    DvizDisplay, DvizDisplaysResponse, DvizSnapshotResponse, DvizSnapshotSummary, DvizStatus,
+    DvizTopic, DvizTopicsResponse, MoveitStatus, RobotModule, RobotProfile, RobotProfileResponse,
+    RobotWorkflow,
 };
 
 fn dviz_binary_path() -> Option<std::path::PathBuf> {
@@ -64,6 +66,42 @@ pub fn query_dviz_topics() -> DvizTopicsResponse {
 
 pub fn query_dviz_displays() -> DvizDisplaysResponse {
     dviz_displays_response(&query_dviz())
+}
+
+pub fn query_dviz_snapshot() -> DvizSnapshotResponse {
+    let status = query_dviz();
+    dviz_snapshot_response(status)
+}
+
+fn dviz_snapshot_response(status: DvizStatus) -> DvizSnapshotResponse {
+    let topics = dviz_topics_response(&status);
+    let displays = dviz_displays_response(&status);
+    let summary = DvizSnapshotSummary {
+        topic_count: topics.topics.len(),
+        ready_topic_count: topics
+            .topics
+            .iter()
+            .filter(|topic| topic.status == "ready")
+            .count(),
+        idle_topic_count: topics
+            .topics
+            .iter()
+            .filter(|topic| topic.status == "idle")
+            .count(),
+        display_count: displays.displays.len(),
+        enabled_display_count: displays
+            .displays
+            .iter()
+            .filter(|display| display.enabled)
+            .count(),
+    };
+
+    DvizSnapshotResponse {
+        source: topics.source,
+        message: topics.message,
+        status,
+        summary,
+    }
 }
 
 fn dviz_topics_response(status: &DvizStatus) -> DvizTopicsResponse {
@@ -210,6 +248,148 @@ fn dviz_metadata_message(status: &DvizStatus) -> String {
     }
 }
 
+pub fn query_robot_profile() -> RobotProfileResponse {
+    RobotProfileResponse {
+        source: "demo".to_string(),
+        message: "Showing a capability-first robot profile until live robot registry integration is available.".to_string(),
+        profile: demo_robot_profile(),
+    }
+}
+
+fn demo_robot_profile() -> RobotProfile {
+    RobotProfile {
+        id: "nano-so101-family".to_string(),
+        name: "Nano SO101 Family".to_string(),
+        family: "nano manipulator platform".to_string(),
+        summary: "Adaptable profile for SO101-style arms, multiple cameras, optional mobility, and optional lidar.".to_string(),
+        simulation_owner: "dora-moveit2 / MuJoCo".to_string(),
+        viewport_role: "Studio mirrors moveit-side simulated state; it does not own simulation.".to_string(),
+        modules: vec![
+            RobotModule {
+                id: "left-arm".to_string(),
+                name: "Left SO101 Arm".to_string(),
+                kind: "arm".to_string(),
+                role: "manipulation".to_string(),
+                transport: "dora dataflow".to_string(),
+                frame: "left_arm_base".to_string(),
+                status: "ready".to_string(),
+                summary: "Primary manipulator slot with gripper-ready joint state.".to_string(),
+                required: true,
+                source_topics: vec!["/robot/model".to_string(), "/world/tf".to_string()],
+                linked_displays: vec!["robotmodel".to_string(), "tf".to_string()],
+            },
+            RobotModule {
+                id: "right-arm".to_string(),
+                name: "Right SO101 Arm".to_string(),
+                kind: "arm".to_string(),
+                role: "manipulation".to_string(),
+                transport: "dora dataflow".to_string(),
+                frame: "right_arm_base".to_string(),
+                status: "optional".to_string(),
+                summary: "Second manipulator slot enabled by robot profile data.".to_string(),
+                required: false,
+                source_topics: vec!["/robot/model".to_string(), "/world/tf".to_string()],
+                linked_displays: vec!["robotmodel".to_string(), "tf".to_string()],
+            },
+            RobotModule {
+                id: "camera-array".to_string(),
+                name: "OpenCV Camera Array".to_string(),
+                kind: "camera".to_string(),
+                role: "perception / recording".to_string(),
+                transport: "OpenCV node".to_string(),
+                frame: "camera_mounts".to_string(),
+                status: "ready".to_string(),
+                summary: "Variable camera count; current target supports up to four camera slots.".to_string(),
+                required: true,
+                source_topics: vec!["/world/points".to_string(), "/world/markers".to_string()],
+                linked_displays: vec!["pointcloud".to_string(), "markers".to_string()],
+            },
+            RobotModule {
+                id: "rgbd-camera".to_string(),
+                name: "RGB-D Camera".to_string(),
+                kind: "camera".to_string(),
+                role: "depth perception".to_string(),
+                transport: "Orbbec / RGB-D node".to_string(),
+                frame: "depth_camera".to_string(),
+                status: "optional".to_string(),
+                summary: "Optional depth stream for point cloud and scene preview displays.".to_string(),
+                required: false,
+                source_topics: vec!["/world/points".to_string()],
+                linked_displays: vec!["pointcloud".to_string()],
+            },
+            RobotModule {
+                id: "mobile-base".to_string(),
+                name: "Mobile Base".to_string(),
+                kind: "mobility".to_string(),
+                role: "navigation".to_string(),
+                transport: "profile slot".to_string(),
+                frame: "base_link".to_string(),
+                status: "optional".to_string(),
+                summary: "Reserved interface for base control once the control path is verified.".to_string(),
+                required: false,
+                source_topics: vec!["/world/tf".to_string(), "/world/markers".to_string()],
+                linked_displays: vec!["tf".to_string(), "markers".to_string()],
+            },
+            RobotModule {
+                id: "lidar".to_string(),
+                name: "Lidar".to_string(),
+                kind: "sensor".to_string(),
+                role: "scan / mapping".to_string(),
+                transport: "profile slot".to_string(),
+                frame: "lidar_link".to_string(),
+                status: "optional".to_string(),
+                summary: "Reserved LaserScan source for dviz display linking.".to_string(),
+                required: false,
+                source_topics: vec!["/world/laser".to_string()],
+                linked_displays: vec!["laserscan".to_string()],
+            },
+        ],
+        workflows: vec![
+            RobotWorkflow {
+                id: "teleop".to_string(),
+                name: "Teleoperation".to_string(),
+                status: "planned".to_string(),
+                owner: "dorobot dataflow".to_string(),
+                summary: "Manual control path for SO101-style robot operation.".to_string(),
+            },
+            RobotWorkflow {
+                id: "recording".to_string(),
+                name: "Data Collection".to_string(),
+                status: "planned".to_string(),
+                owner: "dorobot dataflow".to_string(),
+                summary: "Camera and robot-state recording workflow for dataset capture.".to_string(),
+            },
+            RobotWorkflow {
+                id: "inference".to_string(),
+                name: "Inference".to_string(),
+                status: "planned".to_string(),
+                owner: "dorobot dataflow".to_string(),
+                summary: "Policy-driven operation once model runtime integration is available.".to_string(),
+            },
+            RobotWorkflow {
+                id: "planning".to_string(),
+                name: "Motion Planning".to_string(),
+                status: "planned".to_string(),
+                owner: "dora-moveit2".to_string(),
+                summary: "IK, planning, execution, and MuJoCo state simulation stay moveit-owned.".to_string(),
+            },
+        ],
+        visualization_displays: vec![
+            "RobotModel".to_string(),
+            "TF Frames".to_string(),
+            "PointCloud".to_string(),
+            "LaserScan".to_string(),
+            "Markers".to_string(),
+        ],
+        planning_capabilities: vec![
+            "robot config selection".to_string(),
+            "IK readiness".to_string(),
+            "trajectory preview".to_string(),
+            "moveit-owned MuJoCo state mirror".to_string(),
+        ],
+    }
+}
+
 pub fn query_moveit() -> MoveitStatus {
     let installed =
         is_python_package_installed("dora-moveit") || is_python_package_installed("dora_moveit");
@@ -288,6 +468,68 @@ mod tests {
             .filter_map(|display| display.source_topic.as_ref())
         {
             assert!(topics.contains(topic));
+        }
+    }
+
+    #[test]
+    fn demo_dviz_snapshot_counts_topics_and_displays() {
+        let snapshot = dviz_snapshot_response(dviz_status(false));
+
+        assert_eq!(snapshot.source, "demo");
+        assert_eq!(snapshot.summary.topic_count, 5);
+        assert_eq!(snapshot.summary.ready_topic_count, 2);
+        assert_eq!(snapshot.summary.idle_topic_count, 3);
+        assert_eq!(snapshot.summary.display_count, 7);
+        assert_eq!(snapshot.summary.enabled_display_count, 3);
+    }
+
+    #[test]
+    fn demo_robot_profile_keeps_simulation_moveit_owned() {
+        let response = query_robot_profile();
+
+        assert_eq!(response.source, "demo");
+        assert!(response.profile.simulation_owner.contains("dora-moveit2"));
+        assert!(response
+            .profile
+            .viewport_role
+            .contains("does not own simulation"));
+        assert!(response
+            .profile
+            .modules
+            .iter()
+            .any(|module| module.kind == "arm" && module.required));
+        assert!(response
+            .profile
+            .visualization_displays
+            .iter()
+            .any(|display| display == "RobotModel"));
+    }
+
+    #[test]
+    fn demo_robot_modules_reference_dviz_topics_and_displays() {
+        let topics = dviz_topics_response(&dviz_status(false))
+            .topics
+            .into_iter()
+            .map(|topic| topic.name)
+            .collect::<Vec<_>>();
+        let displays = dviz_displays_response(&dviz_status(false))
+            .displays
+            .into_iter()
+            .map(|display| display.id)
+            .collect::<Vec<_>>();
+        let profile = demo_robot_profile();
+
+        for module in profile.modules {
+            assert!(!module.source_topics.is_empty());
+            assert!(!module.linked_displays.is_empty());
+
+            for topic in module.source_topics {
+                assert!(topics.contains(&topic));
+            }
+
+            for display in module.linked_displays {
+                assert!(displays.contains(&display));
+            }
         }
     }
 }

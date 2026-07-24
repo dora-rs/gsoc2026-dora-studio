@@ -79,6 +79,76 @@ pub struct DvizDisplay {
     pub color: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DvizSnapshotResponse {
+    pub source: String,
+    pub message: String,
+    pub status: DvizStatus,
+    pub summary: DvizSnapshotSummary,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DvizSnapshotSummary {
+    pub topic_count: usize,
+    pub ready_topic_count: usize,
+    pub idle_topic_count: usize,
+    pub display_count: usize,
+    pub enabled_display_count: usize,
+}
+
+// --- robot profile ---
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RobotProfileResponse {
+    pub source: String,
+    pub message: String,
+    pub profile: RobotProfile,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RobotProfile {
+    pub id: String,
+    pub name: String,
+    pub family: String,
+    pub summary: String,
+    pub simulation_owner: String,
+    pub viewport_role: String,
+    pub modules: Vec<RobotModule>,
+    pub workflows: Vec<RobotWorkflow>,
+    pub visualization_displays: Vec<String>,
+    pub planning_capabilities: Vec<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RobotModule {
+    pub id: String,
+    pub name: String,
+    pub kind: String,
+    pub role: String,
+    pub transport: String,
+    pub frame: String,
+    pub status: String,
+    pub summary: String,
+    pub required: bool,
+    pub source_topics: Vec<String>,
+    pub linked_displays: Vec<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RobotWorkflow {
+    pub id: String,
+    pub name: String,
+    pub status: String,
+    pub owner: String,
+    pub summary: String,
+}
+
 // --- dora-moveit2 ---
 
 #[derive(Serialize)]

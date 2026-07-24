@@ -81,8 +81,8 @@ Recommended walkthrough order:
 2. Open Dataflow Explorer to select a discovered dataflow and inspect its graph, nodes, edges, and diagnostics.
 3. Open Run & Monitor to start the selected dataflow, refresh runtime status, and inspect node metrics.
 4. Open Logs & Events to review grouped info, warning, and error logs from the runtime API or fallback data.
-5. Open Visualization to show the planned dviz-style display controls and 3D viewport structure.
-6. Open Motion Planner to show the planned dora-moveit2 control surface for robot state, scene objects, goals, trajectories, and IK.
+5. Open Visualization to inspect backend-provided dviz topics/displays, select topics, filter metadata, toggle displays locally, refresh the snapshot, and verify the robot profile plus viewport mirror summary updates.
+6. Open Motion Planner to show the profile-bound dora-moveit2 control surface for robot state, scene objects, goals, trajectories, IK, and moveit-owned MuJoCo state mirroring.
 7. Use the sidebar theme toggle to verify light and dark presentation.
 8. Use Export report to download a Markdown snapshot of the current prototype state.
 
@@ -95,6 +95,8 @@ GET    /api/coordinator/status
 GET    /api/dviz/status
 GET    /api/dviz/topics
 GET    /api/dviz/displays
+GET    /api/dviz/snapshot
+GET    /api/robot/profile
 GET    /api/moveit/status
 GET    /api/dataflows
 GET    /api/dataflows/:id/definition
