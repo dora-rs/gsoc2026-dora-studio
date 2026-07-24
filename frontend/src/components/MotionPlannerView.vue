@@ -3,8 +3,26 @@
     <aside class="motion-panel motion-left">
       <div class="motion-section">
         <div class="motion-section-header">
+          <h3>Robot Profile</h3>
+          <span class="pill">{{ robotProfileSource }}</span>
+        </div>
+        <div class="motion-profile-card">
+          <strong>{{ robotProfile.name }}</strong>
+          <span>{{ robotProfile.family }}</span>
+          <p>{{ robotProfile.summary }}</p>
+          <div class="motion-profile-meta">
+            <span>{{ armModules.length }} arm slots</span>
+            <span>{{ cameraModules.length }} camera slots</span>
+            <span>{{ optionalModules.length }} optional modules</span>
+            <span>{{ mappedModuleCount }} mapped modules</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="motion-section">
+        <div class="motion-section-header">
           <h3>Robot State</h3>
-          <span class="pill stopped">simulated</span>
+          <span class="pill stopped">moveit mirror</span>
         </div>
 
         <div class="joint-list">
@@ -83,6 +101,8 @@
         </div>
 
         <div class="planner-config">
+          <label>Robot Config</label>
+          <input type="text" :value="robotProfile.id" disabled />
           <label>Planner</label>
           <select disabled>
             <option>RRT-Connect</option>
@@ -91,6 +111,12 @@
           </select>
           <label>Planning Time</label>
           <input type="text" value="5.0s" disabled />
+        </div>
+
+        <div class="motion-boundary-card">
+          <span>Simulation Owner</span>
+          <strong>{{ robotProfile.simulationOwner }}</strong>
+          <p>{{ robotProfile.viewportRole }}</p>
         </div>
       </div>
 
@@ -150,13 +176,105 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { getMoveitStatus, type MoveitStatusResponse } from '../api'
+import { computed, onMounted, ref } from 'vue'
+import {
+  getMoveitStatus,
+  getRobotProfile,
+  type ApiSource,
+  type MoveitStatusResponse,
+  type RobotProfileResponse,
+} from '../api'
+
+const fallbackRobotProfile: RobotProfileResponse = {
+  source: 'frontend fallback',
+  message: 'Backend API is not connected; showing the frontend fallback robot profile.',
+  profile: {
+    id: 'nano-so101-family',
+    name: 'Nano SO101 Family',
+    family: 'nano manipulator platform',
+    summary: 'Capability-first profile for SO101 arms, camera modules, optional base, and optional lidar.',
+    simulationOwner: 'dora-moveit2 / MuJoCo',
+    viewportRole: 'Studio mirrors moveit-side simulated state; it does not own simulation.',
+    modules: [
+      {
+        id: 'left-arm',
+        name: 'Left SO101 Arm',
+        kind: 'arm',
+        role: 'manipulation',
+        transport: 'dora dataflow',
+        frame: 'left_arm_base',
+        status: 'ready',
+        summary: 'Primary manipulator slot with gripper-ready joint state.',
+        required: true,
+        sourceTopics: ['/robot/model', '/world/tf'],
+        linkedDisplays: ['robotmodel', 'tf'],
+      },
+      {
+        id: 'camera-array',
+        name: 'OpenCV Camera Array',
+        kind: 'camera',
+        role: 'perception / recording',
+        transport: 'OpenCV node',
+        frame: 'camera_mounts',
+        status: 'ready',
+        summary: 'Variable camera count; target profile supports up to four camera slots.',
+        required: true,
+        sourceTopics: ['/world/points', '/world/markers'],
+        linkedDisplays: ['pointcloud', 'markers'],
+      },
+      {
+        id: 'mobile-base',
+        name: 'Mobile Base',
+        kind: 'mobility',
+        role: 'navigation',
+        transport: 'profile slot',
+        frame: 'base_link',
+        status: 'optional',
+        summary: 'Reserved interface for base control once verified.',
+        required: false,
+        sourceTopics: ['/world/tf', '/world/markers'],
+        linkedDisplays: ['tf', 'markers'],
+      },
+      {
+        id: 'lidar',
+        name: 'Lidar',
+        kind: 'sensor',
+        role: 'scan / mapping',
+        transport: 'profile slot',
+        frame: 'lidar_link',
+        status: 'optional',
+        summary: 'Reserved LaserScan source for dviz display linking.',
+        required: false,
+        sourceTopics: ['/world/laser'],
+        linkedDisplays: ['laserscan'],
+      },
+    ],
+    workflows: [
+      {
+        id: 'planning',
+        name: 'Motion Planning',
+        status: 'planned',
+        owner: 'dora-moveit2',
+        summary: 'IK, planning, execution, and MuJoCo simulation stay moveit-owned.',
+      },
+    ],
+    visualizationDisplays: ['RobotModel', 'TF Frames', 'PointCloud', 'LaserScan', 'Markers'],
+    planningCapabilities: ['robot config selection', 'IK readiness', 'trajectory preview', 'moveit-owned MuJoCo state mirror'],
+  },
+}
 
 const moveit = ref<MoveitStatusResponse>({
   installed: false, running: false,
   message: 'Backend API is not connected.',
 })
+const robotProfileData = ref<RobotProfileResponse>(fallbackRobotProfile)
+const robotProfileSource = ref<ApiSource>('fallback')
+
+const robotProfile = computed(() => robotProfileData.value.profile)
+const armModules = computed(() => robotProfile.value.modules.filter((module) => module.kind === 'arm'))
+const cameraModules = computed(() => robotProfile.value.modules.filter((module) => module.kind === 'camera'))
+const optionalModules = computed(() => robotProfile.value.modules.filter((module) => !module.required))
+const mappedModuleCount = computed(() => robotProfile.value.modules.filter((module) => module.linkedDisplays.length > 0).length)
 
 const joints = [
   { name: 'shoulder_pan', value: '0.00' },
@@ -181,10 +299,16 @@ const sceneObjects = [
 const goalJoints = ['0.00', '0.00', '0.00', '0.00', '0.00', '0.00']
 
 onMounted(async () => {
-  const result = await getMoveitStatus({
-    installed: false, running: false,
-    message: 'Backend API is not connected.',
-  })
-  moveit.value = result.data
+  const [moveitResult, robotProfileResult] = await Promise.all([
+    getMoveitStatus({
+      installed: false, running: false,
+      message: 'Backend API is not connected.',
+    }),
+    getRobotProfile(fallbackRobotProfile),
+  ])
+
+  moveit.value = moveitResult.data
+  robotProfileData.value = robotProfileResult.data
+  robotProfileSource.value = robotProfileResult.source
 })
 </script>
