@@ -13,10 +13,10 @@ Implemented areas:
 - Run & Monitor page for selecting a discovered dataflow and controlling it through the backend runtime bridge.
 - Logs & Events page with runtime log polling, log-level grouping, raw stream view, and connected/fallback states.
 - Visualization page with a dviz-oriented 3D viewport layout and display property panels.
-- Motion Planner page with robot state, planning scene, goal configuration, trajectory preview, and IK solver panels.
+- Motion Planner page with robot profile data, read-only MoveIt/MuJoCo snapshot summaries, SO-101 visual mirror, planning scene, trajectory preview, and IK solver panels.
 - Light/dark theme toggle with local preference persistence.
 
-The Visualization and Motion Planner pages are product-style layouts prepared for Phase 2 integration. They do not yet stream real 3D data or execute motion planning commands.
+The Visualization and Motion Planner pages are product-style layouts prepared for Phase 2 integration. They now expose read-only dviz and MoveIt/MuJoCo metadata boundaries, but they do not yet stream real 3D data or execute motion planning commands.
 
 ## Repository Layout
 
@@ -82,7 +82,7 @@ Recommended walkthrough order:
 3. Open Run & Monitor to start the selected dataflow, refresh runtime status, and inspect node metrics.
 4. Open Logs & Events to review grouped info, warning, and error logs from the runtime API or fallback data.
 5. Open Visualization to inspect backend-provided dviz topics/displays, select topics, filter metadata, toggle displays locally, refresh the snapshot, and verify the robot profile plus viewport mirror summary updates.
-6. Open Motion Planner to show the profile-bound dora-moveit2 control surface for robot state, scene objects, goals, trajectories, IK, and moveit-owned MuJoCo state mirroring.
+6. Open Motion Planner to show the profile-bound dora-moveit2 control surface, read-only MoveIt snapshot, SO-101 MuJoCo visual mirror, scene objects, trajectories, IK, and disabled execution controls.
 7. Use the sidebar theme toggle to verify light and dark presentation.
 8. Use Export report to download a Markdown snapshot of the current prototype state.
 
@@ -98,6 +98,7 @@ GET    /api/dviz/displays
 GET    /api/dviz/snapshot
 GET    /api/robot/profile
 GET    /api/moveit/status
+GET    /api/moveit/snapshot
 GET    /api/dataflows
 GET    /api/dataflows/:id/definition
 GET    /api/dataflows/:id/graph
@@ -130,5 +131,5 @@ For UI changes, also run the backend and frontend locally, then walk through the
 - Coordinator integration currently uses CLI-backed status queries rather than a direct WebSocket client.
 - Node CPU, memory, and pending-message values are still prototype metrics.
 - dviz status detection is process/install-level; real Zenoh data forwarding is planned for Phase 2.
-- dora-moveit2 status detection is package/dataflow-level; real planning and execution endpoints are planned for Phase 2.
+- dora-moveit2 status and snapshot data are read-only metadata/demo boundaries; real planning and execution endpoints are planned for later Phase 2 work.
 - The current graph parser supports the subset of DORA YAML needed by the example flows and reports diagnostics for unsupported top-level sections.
