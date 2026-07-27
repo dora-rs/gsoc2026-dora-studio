@@ -278,6 +278,74 @@ export type MoveitStatusResponse = {
   message: string
 }
 
+export type MoveitSnapshotFreshnessResponse = {
+  status: string
+  lastUpdated: string
+  sourceLabel: string
+}
+
+export type MoveitJointStateResponse = {
+  name: string
+  value: number
+  unit: string
+  lowerLimit: number
+  upperLimit: number
+  status: string
+  source: string
+}
+
+export type MoveitEndEffectorPoseResponse = {
+  frame: string
+  position: [number, number, number]
+  quaternion: [number, number, number, number]
+  source: string
+}
+
+export type MoveitSceneObjectResponse = {
+  name: string
+  shape: string
+  dims: string
+  dimensions: number[]
+  frame: string
+  status: string
+}
+
+export type MoveitPlanningSceneResponse = {
+  status: string
+  objectCount: number
+  objects: MoveitSceneObjectResponse[]
+}
+
+export type MoveitTrajectorySummaryResponse = {
+  status: string
+  waypointCount: number
+  durationSeconds: number
+  message: string
+}
+
+export type MoveitVisualModelResponse = {
+  modelId: string
+  name: string
+  format: string
+  source: string
+  jointOrder: string[]
+}
+
+export type MoveitSnapshotResponse = {
+  source: string
+  message: string
+  robotProfileId: string
+  robotConfigId: string
+  simulationOwner: string
+  viewportRole: string
+  freshness: MoveitSnapshotFreshnessResponse
+  joints: MoveitJointStateResponse[]
+  endEffectorPose: MoveitEndEffectorPoseResponse
+  scene: MoveitPlanningSceneResponse
+  trajectory: MoveitTrajectorySummaryResponse
+  visualModel: MoveitVisualModelResponse
+}
+
 export function getCoordinatorStatus(fallback: CoordinatorStatusResponse) {
   return withFallback('/coordinator/status', fallback)
 }
@@ -304,4 +372,8 @@ export function getRobotProfile(fallback: RobotProfileResponse) {
 
 export function getMoveitStatus(fallback: MoveitStatusResponse) {
   return withFallback('/moveit/status', fallback)
+}
+
+export function getMoveitSnapshot(fallback: MoveitSnapshotResponse) {
+  return withFallback('/moveit/snapshot', fallback)
 }

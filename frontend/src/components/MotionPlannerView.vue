@@ -178,9 +178,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import {
+  getMoveitSnapshot,
   getMoveitStatus,
   getRobotProfile,
   type ApiSource,
+  type MoveitSnapshotResponse,
   type MoveitStatusResponse,
   type RobotProfileResponse,
 } from '../api'
@@ -263,12 +265,64 @@ const fallbackRobotProfile: RobotProfileResponse = {
   },
 }
 
+const fallbackMoveitSnapshot: MoveitSnapshotResponse = {
+  source: 'frontend fallback',
+  message: 'Backend API is not connected; showing a read-only SO-101 MuJoCo mirror fallback.',
+  robotProfileId: 'nano-so101-family',
+  robotConfigId: 'so101-left-arm-demo',
+  simulationOwner: 'dora-moveit2 / MuJoCo',
+  viewportRole: 'Studio mirrors moveit-side simulated state; it does not own simulation.',
+  freshness: {
+    status: 'fallback',
+    lastUpdated: 'frontend fallback frame',
+    sourceLabel: 'deterministic frontend fallback',
+  },
+  joints: [
+    { name: 'shoulder_pan', value: 0.22, unit: 'rad', lowerLimit: -2.62, upperLimit: 2.62, status: 'ready', source: 'frontend moveit mirror' },
+    { name: 'shoulder_lift', value: -0.48, unit: 'rad', lowerLimit: -1.9, upperLimit: 1.9, status: 'ready', source: 'frontend moveit mirror' },
+    { name: 'elbow_flex', value: 0.86, unit: 'rad', lowerLimit: -2.1, upperLimit: 2.1, status: 'ready', source: 'frontend moveit mirror' },
+    { name: 'wrist_flex', value: -0.34, unit: 'rad', lowerLimit: -1.8, upperLimit: 1.8, status: 'ready', source: 'frontend moveit mirror' },
+    { name: 'wrist_roll', value: 0.18, unit: 'rad', lowerLimit: -3.14, upperLimit: 3.14, status: 'ready', source: 'frontend moveit mirror' },
+    { name: 'gripper', value: 0.03, unit: 'rad', lowerLimit: 0, upperLimit: 0.8, status: 'ready', source: 'frontend moveit mirror' },
+  ],
+  endEffectorPose: {
+    frame: 'left_gripper_tip',
+    position: [0.32, -0.08, 0.24],
+    quaternion: [0, 0.18, 0, 0.98],
+    source: 'frontend moveit mirror',
+  },
+  scene: {
+    status: 'ready',
+    objectCount: 3,
+    objects: [
+      { name: 'workbench', shape: 'box', dims: '0.80 x 1.20 x 0.05', dimensions: [0.8, 1.2, 0.05], frame: 'world', status: 'fixed' },
+      { name: 'pick_target', shape: 'cylinder', dims: 'r=0.04 h=0.12', dimensions: [0.04, 0.12], frame: 'world', status: 'target' },
+      { name: 'safety_zone', shape: 'sphere', dims: 'r=0.18', dimensions: [0.18], frame: 'left_arm_base', status: 'collision guard' },
+    ],
+  },
+  trajectory: {
+    status: 'idle',
+    waypointCount: 0,
+    durationSeconds: 0,
+    message: 'No plan requested; Studio is showing read-only mirror state.',
+  },
+  visualModel: {
+    modelId: 'so101-mujoco-mirror',
+    name: 'SO-101 MuJoCo visual mirror',
+    format: 'css-articulated-preview',
+    source: 'dora-moveit2 mirror contract',
+    jointOrder: ['shoulder_pan', 'shoulder_lift', 'elbow_flex', 'wrist_flex', 'wrist_roll', 'gripper'],
+  },
+}
+
 const moveit = ref<MoveitStatusResponse>({
   installed: false, running: false,
   message: 'Backend API is not connected.',
 })
 const robotProfileData = ref<RobotProfileResponse>(fallbackRobotProfile)
 const robotProfileSource = ref<ApiSource>('fallback')
+const moveitSnapshotData = ref<MoveitSnapshotResponse>(fallbackMoveitSnapshot)
+const moveitSnapshotSource = ref<ApiSource>('fallback')
 
 const robotProfile = computed(() => robotProfileData.value.profile)
 const armModules = computed(() => robotProfile.value.modules.filter((module) => module.kind === 'arm'))
@@ -299,16 +353,19 @@ const sceneObjects = [
 const goalJoints = ['0.00', '0.00', '0.00', '0.00', '0.00', '0.00']
 
 onMounted(async () => {
-  const [moveitResult, robotProfileResult] = await Promise.all([
+  const [moveitResult, robotProfileResult, moveitSnapshotResult] = await Promise.all([
     getMoveitStatus({
       installed: false, running: false,
       message: 'Backend API is not connected.',
     }),
     getRobotProfile(fallbackRobotProfile),
+    getMoveitSnapshot(fallbackMoveitSnapshot),
   ])
 
   moveit.value = moveitResult.data
   robotProfileData.value = robotProfileResult.data
   robotProfileSource.value = robotProfileResult.source
+  moveitSnapshotData.value = moveitSnapshotResult.data
+  moveitSnapshotSource.value = moveitSnapshotResult.source
 })
 </script>
