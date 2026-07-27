@@ -159,6 +159,89 @@ pub struct MoveitStatus {
     pub message: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveitSnapshotResponse {
+    pub source: String,
+    pub message: String,
+    pub robot_profile_id: String,
+    pub robot_config_id: String,
+    pub simulation_owner: String,
+    pub viewport_role: String,
+    pub freshness: MoveitSnapshotFreshness,
+    pub joints: Vec<MoveitJointState>,
+    pub end_effector_pose: MoveitEndEffectorPose,
+    pub scene: MoveitPlanningScene,
+    pub trajectory: MoveitTrajectorySummary,
+    pub visual_model: MoveitVisualModel,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveitSnapshotFreshness {
+    pub status: String,
+    pub last_updated: String,
+    pub source_label: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveitJointState {
+    pub name: String,
+    pub value: f32,
+    pub unit: String,
+    pub lower_limit: f32,
+    pub upper_limit: f32,
+    pub status: String,
+    pub source: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveitEndEffectorPose {
+    pub frame: String,
+    pub position: [f32; 3],
+    pub quaternion: [f32; 4],
+    pub source: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveitPlanningScene {
+    pub status: String,
+    pub object_count: usize,
+    pub objects: Vec<MoveitSceneObject>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveitSceneObject {
+    pub name: String,
+    pub shape: String,
+    pub dims: String,
+    pub frame: String,
+    pub status: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveitTrajectorySummary {
+    pub status: String,
+    pub waypoint_count: usize,
+    pub duration_seconds: f32,
+    pub message: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveitVisualModel {
+    pub model_id: String,
+    pub name: String,
+    pub format: String,
+    pub source: String,
+    pub joint_order: Vec<String>,
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeState {
