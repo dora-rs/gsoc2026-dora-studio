@@ -126,9 +126,9 @@
         </div>
 
         <div class="joint-goal-grid">
-          <div v-for="(val, i) in goalJoints" :key="i" class="joint-goal-cell">
-            <label>joint_{{ i + 1 }}</label>
-            <input type="text" :value="val" disabled />
+          <div v-for="joint in goalJointRows" :key="joint.name" class="joint-goal-cell">
+            <label>{{ joint.name }}</label>
+            <input type="text" :value="joint.value" disabled />
           </div>
         </div>
 
@@ -173,19 +173,20 @@
         <div class="motion-section-header">
           <h3>Trajectory Preview</h3>
           <span class="pill">{{ snapshotTrajectory.waypointCount }} waypoints</span>
+          <span class="pill">{{ snapshotTrajectory.durationSeconds.toFixed(1) }}s</span>
         </div>
         <div class="trajectory-table-wrap">
           <table class="trajectory-table">
             <thead>
               <tr>
                 <th>#</th>
-                <th v-for="j in 6" :key="j">joint_{{ j }}</th>
+                <th v-for="joint in goalJointRows" :key="joint.name">{{ joint.name }}</th>
                 <th>time</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td colspan="8" class="empty-trajectory">
+                <td :colspan="trajectoryColumnCount" class="empty-trajectory">
                   {{ snapshotTrajectory.message }}
                 </td>
               </tr>
@@ -405,7 +406,14 @@ const visualJointStyle = computed(() => {
 })
 const snapshotSourceLabel = computed(() => `${moveitSnapshotSource.value} · ${moveitSnapshot.value.source}`)
 
-const goalJoints = ['0.00', '0.00', '0.00', '0.00', '0.00', '0.00']
+const goalJointRows = computed(() => moveitSnapshot.value.visualModel.jointOrder.map((name) => {
+  const joint = moveitSnapshot.value.joints.find((item) => item.name === name)
+  return {
+    name,
+    value: joint ? joint.value.toFixed(2) : '0.00',
+  }
+}))
+const trajectoryColumnCount = computed(() => goalJointRows.value.length + 2)
 
 onMounted(async () => {
   const [moveitResult, robotProfileResult, moveitSnapshotResult] = await Promise.all([
