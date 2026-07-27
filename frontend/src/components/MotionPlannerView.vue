@@ -32,7 +32,7 @@
               <input type="text" :value="joint.value.toFixed(2)" disabled />
               <span>{{ joint.unit }}</span>
             </div>
-            <small>{{ joint.status }} · {{ joint.lowerLimit.toFixed(2) }}..{{ joint.upperLimit.toFixed(2) }}</small>
+            <small class="joint-meta">{{ joint.status }} · {{ joint.lowerLimit.toFixed(2) }}..{{ joint.upperLimit.toFixed(2) }}</small>
           </div>
         </div>
       </div>
@@ -77,6 +77,43 @@
     </aside>
 
     <article class="motion-panel motion-right">
+      <div class="motion-section mujoco-mirror-section">
+        <div class="motion-section-header">
+          <h3>SO-101 MuJoCo Visual Mirror</h3>
+          <span class="pill warning">mirror only</span>
+        </div>
+        <div class="mujoco-mirror-card">
+          <div class="mujoco-stage" :style="visualJointStyle">
+            <div class="mujoco-grid-floor"></div>
+            <div class="so101-base">
+              <span>SO-101</span>
+            </div>
+            <div class="so101-arm shoulder-link">
+              <div class="so101-joint shoulder-joint"></div>
+              <div class="so101-arm elbow-link">
+                <div class="so101-joint elbow-joint"></div>
+                <div class="so101-arm wrist-link">
+                  <div class="so101-joint wrist-joint"></div>
+                  <div class="so101-gripper">
+                    <span class="gripper-finger left"></span>
+                    <span class="gripper-finger right"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="mujoco-target-dot"></div>
+          </div>
+          <div class="mujoco-mirror-details">
+            <span>{{ moveitSnapshot.visualModel.name }}</span>
+            <strong>{{ moveitSnapshot.robotConfigId }}</strong>
+            <p>{{ moveitSnapshot.viewportRole }}</p>
+            <div class="robot-display-tags">
+              <span v-for="joint in moveitSnapshot.visualModel.jointOrder" :key="joint">{{ joint }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="motion-section">
         <div class="motion-section-header">
           <h3>Motion Control</h3>
@@ -128,43 +165,6 @@
             <span>{{ moveitSnapshot.freshness.status }}</span>
             <span>{{ moveitSnapshot.freshness.lastUpdated }}</span>
             <span>{{ moveitSnapshot.freshness.sourceLabel }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="motion-section mujoco-mirror-section">
-        <div class="motion-section-header">
-          <h3>SO-101 MuJoCo Visual Mirror</h3>
-          <span class="pill warning">mirror only</span>
-        </div>
-        <div class="mujoco-mirror-card">
-          <div class="mujoco-stage" :style="visualJointStyle">
-            <div class="mujoco-grid-floor"></div>
-            <div class="so101-base">
-              <span>SO-101</span>
-            </div>
-            <div class="so101-arm shoulder-link">
-              <div class="so101-joint shoulder-joint"></div>
-              <div class="so101-arm elbow-link">
-                <div class="so101-joint elbow-joint"></div>
-                <div class="so101-arm wrist-link">
-                  <div class="so101-joint wrist-joint"></div>
-                  <div class="so101-gripper">
-                    <span class="gripper-finger left"></span>
-                    <span class="gripper-finger right"></span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="mujoco-target-dot"></div>
-          </div>
-          <div class="mujoco-mirror-details">
-            <span>{{ moveitSnapshot.visualModel.name }}</span>
-            <strong>{{ moveitSnapshot.robotConfigId }}</strong>
-            <p>{{ moveitSnapshot.viewportRole }}</p>
-            <div class="robot-display-tags">
-              <span v-for="joint in moveitSnapshot.visualModel.jointOrder" :key="joint">{{ joint }}</span>
-            </div>
           </div>
         </div>
       </div>
