@@ -219,6 +219,7 @@ pub struct MoveitSceneObject {
     pub name: String,
     pub shape: String,
     pub dims: String,
+    pub dimensions: Vec<f32>,
     pub frame: String,
     pub status: String,
 }

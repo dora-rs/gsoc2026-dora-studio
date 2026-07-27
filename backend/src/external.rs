@@ -400,6 +400,33 @@ pub fn query_moveit_snapshot() -> MoveitSnapshotResponse {
         .map(|joint| joint.name.clone())
         .collect::<Vec<_>>();
 
+    let objects = vec![
+        MoveitSceneObject {
+            name: "workbench".to_string(),
+            shape: "box".to_string(),
+            dims: "0.80 x 1.20 x 0.05".to_string(),
+            dimensions: vec![0.80, 1.20, 0.05],
+            frame: "world".to_string(),
+            status: "fixed".to_string(),
+        },
+        MoveitSceneObject {
+            name: "pick_target".to_string(),
+            shape: "cylinder".to_string(),
+            dims: "r=0.04 h=0.12".to_string(),
+            dimensions: vec![0.04, 0.12],
+            frame: "world".to_string(),
+            status: "target".to_string(),
+        },
+        MoveitSceneObject {
+            name: "safety_zone".to_string(),
+            shape: "sphere".to_string(),
+            dims: "r=0.18".to_string(),
+            dimensions: vec![0.18],
+            frame: "left_arm_base".to_string(),
+            status: "collision guard".to_string(),
+        },
+    ];
+
     MoveitSnapshotResponse {
         source: "demo".to_string(),
         message: "Showing a read-only dora-moveit2 / MuJoCo mirror snapshot until live moveit state is connected.".to_string(),
@@ -421,30 +448,8 @@ pub fn query_moveit_snapshot() -> MoveitSnapshotResponse {
         },
         scene: MoveitPlanningScene {
             status: "ready".to_string(),
-            object_count: 3,
-            objects: vec![
-                MoveitSceneObject {
-                    name: "workbench".to_string(),
-                    shape: "box".to_string(),
-                    dims: "0.80 x 1.20 x 0.05".to_string(),
-                    frame: "world".to_string(),
-                    status: "fixed".to_string(),
-                },
-                MoveitSceneObject {
-                    name: "pick_target".to_string(),
-                    shape: "cylinder".to_string(),
-                    dims: "r=0.04 h=0.12".to_string(),
-                    frame: "world".to_string(),
-                    status: "target".to_string(),
-                },
-                MoveitSceneObject {
-                    name: "safety_zone".to_string(),
-                    shape: "sphere".to_string(),
-                    dims: "r=0.18".to_string(),
-                    frame: "left_arm_base".to_string(),
-                    status: "collision guard".to_string(),
-                },
-            ],
+            object_count: objects.len(),
+            objects,
         },
         trajectory: MoveitTrajectorySummary {
             status: "idle".to_string(),
@@ -463,60 +468,64 @@ pub fn query_moveit_snapshot() -> MoveitSnapshotResponse {
 }
 
 fn demo_moveit_joints() -> Vec<MoveitJointState> {
+    const UNIT: &str = "rad";
+    const STATUS: &str = "ready";
+    const SOURCE: &str = "demo moveit mirror";
+
     vec![
         MoveitJointState {
             name: "shoulder_pan".to_string(),
             value: 0.22,
-            unit: "rad".to_string(),
+            unit: UNIT.to_string(),
             lower_limit: -2.62,
             upper_limit: 2.62,
-            status: "ready".to_string(),
-            source: "demo moveit mirror".to_string(),
+            status: STATUS.to_string(),
+            source: SOURCE.to_string(),
         },
         MoveitJointState {
             name: "shoulder_lift".to_string(),
             value: -0.48,
-            unit: "rad".to_string(),
+            unit: UNIT.to_string(),
             lower_limit: -1.90,
             upper_limit: 1.90,
-            status: "ready".to_string(),
-            source: "demo moveit mirror".to_string(),
+            status: STATUS.to_string(),
+            source: SOURCE.to_string(),
         },
         MoveitJointState {
             name: "elbow_flex".to_string(),
             value: 0.86,
-            unit: "rad".to_string(),
+            unit: UNIT.to_string(),
             lower_limit: -2.10,
             upper_limit: 2.10,
-            status: "ready".to_string(),
-            source: "demo moveit mirror".to_string(),
+            status: STATUS.to_string(),
+            source: SOURCE.to_string(),
         },
         MoveitJointState {
             name: "wrist_flex".to_string(),
             value: -0.34,
-            unit: "rad".to_string(),
+            unit: UNIT.to_string(),
             lower_limit: -1.80,
             upper_limit: 1.80,
-            status: "ready".to_string(),
-            source: "demo moveit mirror".to_string(),
+            status: STATUS.to_string(),
+            source: SOURCE.to_string(),
         },
         MoveitJointState {
             name: "wrist_roll".to_string(),
             value: 0.18,
-            unit: "rad".to_string(),
+            unit: UNIT.to_string(),
             lower_limit: -3.14,
             upper_limit: 3.14,
-            status: "ready".to_string(),
-            source: "demo moveit mirror".to_string(),
+            status: STATUS.to_string(),
+            source: SOURCE.to_string(),
         },
         MoveitJointState {
             name: "gripper".to_string(),
             value: 0.03,
-            unit: "rad".to_string(),
+            unit: UNIT.to_string(),
             lower_limit: 0.0,
             upper_limit: 0.8,
-            status: "ready".to_string(),
-            source: "demo moveit mirror".to_string(),
+            status: STATUS.to_string(),
+            source: SOURCE.to_string(),
         },
     ]
 }
@@ -674,7 +683,32 @@ mod tests {
         assert!(snapshot.simulation_owner.contains("dora-moveit2"));
         assert!(snapshot.viewport_role.contains("does not own simulation"));
         assert_eq!(snapshot.joints.len(), 6);
+        assert_eq!(snapshot.scene.object_count, snapshot.scene.objects.len());
         assert_eq!(snapshot.scene.objects.len(), 3);
+
+        let workbench = snapshot
+            .scene
+            .objects
+            .iter()
+            .find(|object| object.name == "workbench")
+            .expect("workbench object present");
+        assert_eq!(workbench.dimensions, vec![0.80, 1.20, 0.05]);
+
+        let pick_target = snapshot
+            .scene
+            .objects
+            .iter()
+            .find(|object| object.name == "pick_target")
+            .expect("pick_target object present");
+        assert_eq!(pick_target.dimensions, vec![0.04, 0.12]);
+
+        let safety_zone = snapshot
+            .scene
+            .objects
+            .iter()
+            .find(|object| object.name == "safety_zone")
+            .expect("safety_zone object present");
+        assert_eq!(safety_zone.dimensions, vec![0.18]);
         assert_eq!(snapshot.trajectory.status, "idle");
         assert_eq!(snapshot.visual_model.model_id, "so101-mujoco-mirror");
     }
