@@ -140,7 +140,7 @@
 
         <div class="planner-config">
           <label>Robot Config</label>
-          <input type="text" :value="robotProfile.id" disabled />
+          <input type="text" :value="moveitSnapshot.robotConfigId" disabled />
           <label>Planner</label>
           <select disabled>
             <option>RRT-Connect</option>
