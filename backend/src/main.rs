@@ -39,6 +39,7 @@ async fn main() {
         .route("/api/dviz/snapshot", get(dviz_snapshot))
         .route("/api/robot/profile", get(robot_profile))
         .route("/api/moveit/status", get(moveit_status))
+        .route("/api/moveit/snapshot", get(moveit_snapshot))
         .with_state(runtime)
         .layer(CorsLayer::permissive());
 
@@ -152,6 +153,10 @@ async fn moveit_status() -> Json<models::MoveitStatus> {
     }
 
     Json(status)
+}
+
+async fn moveit_snapshot() -> Json<models::MoveitSnapshotResponse> {
+    Json(external::query_moveit_snapshot())
 }
 
 async fn dataflows() -> Result<Json<Vec<models::DataflowSummary>>, ApiError> {
