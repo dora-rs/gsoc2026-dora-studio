@@ -26,12 +26,13 @@
         </div>
 
         <div class="joint-list">
-          <div v-for="joint in joints" :key="joint.name" class="joint-row">
+          <div v-for="joint in snapshotJoints" :key="joint.name" class="joint-row">
             <label>{{ joint.name }}</label>
             <div class="joint-input">
-              <input type="text" :value="joint.value" disabled />
-              <span>rad</span>
+              <input type="text" :value="joint.value.toFixed(2)" disabled />
+              <span>{{ joint.unit }}</span>
             </div>
+            <small>{{ joint.status }} · {{ joint.lowerLimit.toFixed(2) }}..{{ joint.upperLimit.toFixed(2) }}</small>
           </div>
         </div>
       </div>
@@ -41,7 +42,7 @@
           <h3>End-Effector Pose</h3>
         </div>
         <div class="pose-grid">
-          <div class="pose-row" v-for="row in poseRows" :key="row.label">
+          <div class="pose-row" v-for="row in snapshotPoseRows" :key="row.label">
             <label>{{ row.label }}</label>
             <input v-for="(val, i) in row.values" :key="i" type="text" :value="val" disabled />
           </div>
@@ -51,14 +52,14 @@
       <div class="motion-section">
         <div class="motion-section-header">
           <h3>Planning Scene</h3>
-          <span class="pill">3 objects</span>
+          <span class="pill">{{ moveitSnapshot.scene.objectCount }} objects</span>
         </div>
         <div class="scene-list">
-          <div v-for="obj in sceneObjects" :key="obj.name" class="scene-object">
+          <div v-for="obj in snapshotSceneObjects" :key="obj.name" class="scene-object">
             <span :class="['scene-icon', obj.shape]"></span>
             <div>
               <strong>{{ obj.name }}</strong>
-              <small>{{ obj.dims }}</small>
+              <small>{{ obj.dims }} · {{ obj.frame }} · {{ obj.status }}</small>
             </div>
           </div>
         </div>
@@ -118,12 +119,60 @@
           <strong>{{ robotProfile.simulationOwner }}</strong>
           <p>{{ robotProfile.viewportRole }}</p>
         </div>
+
+        <div class="motion-snapshot-card">
+          <span>MoveIt Snapshot</span>
+          <strong>{{ snapshotSourceLabel }}</strong>
+          <p>{{ moveitSnapshot.message }}</p>
+          <div class="motion-profile-meta">
+            <span>{{ moveitSnapshot.freshness.status }}</span>
+            <span>{{ moveitSnapshot.freshness.lastUpdated }}</span>
+            <span>{{ moveitSnapshot.freshness.sourceLabel }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="motion-section mujoco-mirror-section">
+        <div class="motion-section-header">
+          <h3>SO-101 MuJoCo Visual Mirror</h3>
+          <span class="pill warning">mirror only</span>
+        </div>
+        <div class="mujoco-mirror-card">
+          <div class="mujoco-stage" :style="visualJointStyle">
+            <div class="mujoco-grid-floor"></div>
+            <div class="so101-base">
+              <span>SO-101</span>
+            </div>
+            <div class="so101-arm shoulder-link">
+              <div class="so101-joint shoulder-joint"></div>
+              <div class="so101-arm elbow-link">
+                <div class="so101-joint elbow-joint"></div>
+                <div class="so101-arm wrist-link">
+                  <div class="so101-joint wrist-joint"></div>
+                  <div class="so101-gripper">
+                    <span class="gripper-finger left"></span>
+                    <span class="gripper-finger right"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="mujoco-target-dot"></div>
+          </div>
+          <div class="mujoco-mirror-details">
+            <span>{{ moveitSnapshot.visualModel.name }}</span>
+            <strong>{{ moveitSnapshot.robotConfigId }}</strong>
+            <p>{{ moveitSnapshot.viewportRole }}</p>
+            <div class="robot-display-tags">
+              <span v-for="joint in moveitSnapshot.visualModel.jointOrder" :key="joint">{{ joint }}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="motion-section">
         <div class="motion-section-header">
           <h3>Trajectory Preview</h3>
-          <span class="pill">0 waypoints</span>
+          <span class="pill">{{ snapshotTrajectory.waypointCount }} waypoints</span>
         </div>
         <div class="trajectory-table-wrap">
           <table class="trajectory-table">
@@ -137,7 +186,7 @@
             <tbody>
               <tr>
                 <td colspan="8" class="empty-trajectory">
-                  规划后将在此显示轨迹路径点
+                  {{ snapshotTrajectory.message }}
                 </td>
               </tr>
             </tbody>
@@ -329,26 +378,32 @@ const armModules = computed(() => robotProfile.value.modules.filter((module) => 
 const cameraModules = computed(() => robotProfile.value.modules.filter((module) => module.kind === 'camera'))
 const optionalModules = computed(() => robotProfile.value.modules.filter((module) => !module.required))
 const mappedModuleCount = computed(() => robotProfile.value.modules.filter((module) => module.linkedDisplays.length > 0).length)
-
-const joints = [
-  { name: 'shoulder_pan', value: '0.00' },
-  { name: 'shoulder_lift', value: '0.00' },
-  { name: 'elbow', value: '0.00' },
-  { name: 'wrist_1', value: '0.00' },
-  { name: 'wrist_2', value: '0.00' },
-  { name: 'wrist_3', value: '0.00' },
-]
-
-const poseRows = [
-  { label: 'XYZ', values: ['0.00', '0.00', '0.00'] },
-  { label: 'Quat', values: ['0.00', '0.00', '0.00', '1.00'] },
-]
-
-const sceneObjects = [
-  { name: 'table', shape: 'box', dims: '0.8 × 1.2 × 0.05' },
-  { name: 'obstacle_A', shape: 'sphere', dims: 'radius 0.15' },
-  { name: 'target_box', shape: 'cylinder', dims: 'r=0.1 h=0.2' },
-]
+const moveitSnapshot = computed(() => moveitSnapshotData.value)
+const snapshotJoints = computed(() => moveitSnapshot.value.joints)
+const snapshotSceneObjects = computed(() => moveitSnapshot.value.scene.objects)
+const snapshotTrajectory = computed(() => moveitSnapshot.value.trajectory)
+const snapshotPoseRows = computed(() => [
+  {
+    label: 'XYZ',
+    values: moveitSnapshot.value.endEffectorPose.position.map((value) => value.toFixed(2)),
+  },
+  {
+    label: 'Quat',
+    values: moveitSnapshot.value.endEffectorPose.quaternion.map((value) => value.toFixed(2)),
+  },
+])
+const visualJointStyle = computed(() => {
+  const [base, shoulder, elbow, wrist, roll, gripper] = moveitSnapshot.value.joints
+  return {
+    '--base-angle': `${(base?.value ?? 0) * 32}deg`,
+    '--shoulder-angle': `${-34 + (shoulder?.value ?? 0) * 18}deg`,
+    '--elbow-angle': `${42 + (elbow?.value ?? 0) * 16}deg`,
+    '--wrist-angle': `${-18 + (wrist?.value ?? 0) * 20}deg`,
+    '--roll-angle': `${(roll?.value ?? 0) * 28}deg`,
+    '--gripper-open': `${24 + (gripper?.value ?? 0) * 30}px`,
+  }
+})
+const snapshotSourceLabel = computed(() => `${moveitSnapshotSource.value} · ${moveitSnapshot.value.source}`)
 
 const goalJoints = ['0.00', '0.00', '0.00', '0.00', '0.00', '0.00']
 
