@@ -410,16 +410,16 @@ const fallbackRobotProfile: RobotProfileResponse = {
   source: 'frontend fallback',
   message: 'Backend API is not connected; showing the frontend fallback robot profile.',
   profile: {
-    id: 'nano-so101-family',
-    name: 'Nano SO101 Family',
+    id: 'nano-full-family',
+    name: 'Nano Full Family',
     family: 'nano manipulator platform',
-    summary: 'Capability-first profile for SO101 arms, camera modules, optional base, and optional lidar.',
+    summary: 'Capability-first profile for the Nano full robot, camera modules, optional base, and optional lidar.',
     simulationOwner: 'dora-moveit2 / MuJoCo',
     viewportRole: 'Studio mirrors moveit-side simulated state; it does not own simulation.',
     modules: [
       {
         id: 'left-arm',
-        name: 'Left SO101 Arm',
+        name: 'Left Nano Arm',
         kind: 'arm',
         role: 'manipulation',
         transport: 'dora dataflow',
@@ -476,7 +476,7 @@ const fallbackRobotProfile: RobotProfileResponse = {
         name: 'Teleoperation',
         status: 'planned',
         owner: 'dorobot dataflow',
-        summary: 'Manual control path for SO101-style robot operation.',
+        summary: 'Manual control path for Nano full robot operation.'
       },
       {
         id: 'recording',

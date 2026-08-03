@@ -2297,8 +2297,183 @@ td span {
   padding: 5px 8px;
 }
 
+.joint-meta {
+  color: #64748b;
+  font-size: 12px;
+  grid-column: 1 / -1;
+}
+
 .motion-boundary-card {
   margin-top: 12px;
+}
+
+.motion-snapshot-card,
+.mujoco-mirror-card {
+  background: #f8fbff;
+  border: 1px solid #dbe7f7;
+  border-radius: 20px;
+  padding: 18px;
+}
+
+.motion-snapshot-card > span,
+.mujoco-mirror-details > span {
+  color: #64748b;
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.motion-snapshot-card strong,
+.mujoco-mirror-details strong {
+  color: #172033;
+  display: block;
+  margin-top: 6px;
+}
+
+.motion-snapshot-card p,
+.mujoco-mirror-details p {
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+
+.mujoco-mirror-section {
+  overflow: hidden;
+}
+
+.mujoco-mirror-card {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.65fr);
+}
+
+@media (max-width: 1500px) {
+  .mujoco-mirror-card {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mujoco-mirror-details {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.nano-arm-viewer {
+  background: radial-gradient(circle at top, #1d2940, #101726 70%);
+  border: 1px solid #223146;
+  border-radius: 24px;
+  min-height: 420px;
+  overflow: hidden;
+  position: relative;
+}
+
+.nano-arm-viewer::before {
+  background:
+    linear-gradient(rgb(96 165 250 / 12%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(96 165 250 / 12%) 1px, transparent 1px);
+  background-size: 32px 32px;
+  content: '';
+  inset: 0;
+  opacity: 0.45;
+  pointer-events: none;
+  position: absolute;
+}
+
+.nano-arm-viewer-canvas {
+  display: block;
+  inset: 0;
+  height: 100%;
+  position: absolute;
+  width: 100%;
+}
+
+.nano-arm-viewer-status,
+.nano-arm-viewer-hint {
+  backdrop-filter: blur(12px);
+  background: rgb(15 23 42 / 72%);
+  border: 1px solid rgb(100 116 139 / 24%);
+  color: #e2e8f0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
+.nano-arm-viewer-status {
+  border-radius: 18px;
+  display: grid;
+  gap: 4px;
+  left: 16px;
+  max-width: 280px;
+  padding: 12px 14px;
+  top: 16px;
+}
+
+.nano-arm-viewer-status span {
+  color: #7dd3fc;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nano-arm-viewer-status strong {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.nano-arm-viewer-status small {
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.nano-arm-viewer-status.ready span {
+  color: #86efac;
+}
+
+.nano-arm-viewer-status.error span {
+  color: #fca5a5;
+}
+
+.nano-arm-viewer-status.loading span {
+  color: #7dd3fc;
+}
+
+.nano-arm-viewer-hint {
+  border-radius: 999px;
+  bottom: 16px;
+  font-size: 12px;
+  padding: 7px 14px;
+  right: 16px;
+}
+
+[data-theme="dark"] .nano-arm-viewer {
+  background: radial-gradient(circle at top, #162133, #0b1220 70%);
+  border-color: #334155;
+}
+
+[data-theme="dark"] .nano-arm-viewer-status,
+[data-theme="dark"] .nano-arm-viewer-hint {
+  background: rgb(15 23 42 / 80%);
+  border-color: rgb(148 163 184 / 20%);
+}
+
+[data-theme="dark"] .nano-arm-viewer-status span {
+  color: #93c5fd;
+}
+
+[data-theme="dark"] .nano-arm-viewer-status.ready span {
+  color: #86efac;
+}
+
+[data-theme="dark"] .nano-arm-viewer-status.error span {
+  color: #fda4af;
 }
 
 .joint-list {
@@ -3042,11 +3217,34 @@ td span {
 }
 
 [data-theme="dark"] .robot-profile-toggle,
-[data-theme="dark"] .robot-display-tags span,
 [data-theme="dark"] .motion-profile-meta span {
   background: #1e3a8a;
   border-color: #2563eb;
   color: #bfdbfe;
+}
+
+[data-theme="dark"] .robot-display-tags span {
+  background: #1e293b;
+  border-color: #334155;
+  color: #bfdbfe;
+}
+
+[data-theme="dark"] .motion-snapshot-card,
+[data-theme="dark"] .mujoco-mirror-card {
+  background: #111827;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .motion-snapshot-card strong,
+[data-theme="dark"] .mujoco-mirror-details strong {
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .motion-snapshot-card > span,
+[data-theme="dark"] .motion-snapshot-card p,
+[data-theme="dark"] .mujoco-mirror-details > span,
+[data-theme="dark"] .mujoco-mirror-details p {
+  color: #94a3b8;
 }
 
 [data-theme="dark"] .viewport-controls {
@@ -3142,4 +3340,8 @@ td span {
 
 [data-theme="dark"] .motion-section-header h3 {
   color: #f1f5f9;
+}
+
+[data-theme="dark"] .joint-meta {
+  color: #94a3b8;
 }

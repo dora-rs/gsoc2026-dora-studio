@@ -1,6 +1,8 @@
 use crate::models::{
     DvizDisplay, DvizDisplaysResponse, DvizSnapshotResponse, DvizSnapshotSummary, DvizStatus,
-    DvizTopic, DvizTopicsResponse, MoveitStatus, RobotModule, RobotProfile, RobotProfileResponse,
+    DvizTopic, DvizTopicsResponse, MoveitEndEffectorPose, MoveitJointState, MoveitPlanningScene,
+    MoveitSceneObject, MoveitSnapshotFreshness, MoveitSnapshotResponse, MoveitStatus,
+    MoveitTrajectorySummary, MoveitVisualModel, RobotModule, RobotProfile, RobotProfileResponse,
     RobotWorkflow,
 };
 
@@ -258,16 +260,16 @@ pub fn query_robot_profile() -> RobotProfileResponse {
 
 fn demo_robot_profile() -> RobotProfile {
     RobotProfile {
-        id: "nano-so101-family".to_string(),
-        name: "Nano SO101 Family".to_string(),
+        id: "nano-full-family".to_string(),
+        name: "Nano Full Family".to_string(),
         family: "nano manipulator platform".to_string(),
-        summary: "Adaptable profile for SO101-style arms, multiple cameras, optional mobility, and optional lidar.".to_string(),
+        summary: "Capability-first profile for the Nano full robot, camera modules, optional base, and optional lidar.".to_string(),
         simulation_owner: "dora-moveit2 / MuJoCo".to_string(),
         viewport_role: "Studio mirrors moveit-side simulated state; it does not own simulation.".to_string(),
         modules: vec![
             RobotModule {
                 id: "left-arm".to_string(),
-                name: "Left SO101 Arm".to_string(),
+                name: "Left Nano Arm".to_string(),
                 kind: "arm".to_string(),
                 role: "manipulation".to_string(),
                 transport: "dora dataflow".to_string(),
@@ -280,7 +282,7 @@ fn demo_robot_profile() -> RobotProfile {
             },
             RobotModule {
                 id: "right-arm".to_string(),
-                name: "Right SO101 Arm".to_string(),
+                name: "Right Nano Arm".to_string(),
                 kind: "arm".to_string(),
                 role: "manipulation".to_string(),
                 transport: "dora dataflow".to_string(),
@@ -350,7 +352,7 @@ fn demo_robot_profile() -> RobotProfile {
                 name: "Teleoperation".to_string(),
                 status: "planned".to_string(),
                 owner: "dorobot dataflow".to_string(),
-                summary: "Manual control path for SO101-style robot operation.".to_string(),
+                summary: "Manual control path for Nano full robot operation.".to_string(),
             },
             RobotWorkflow {
                 id: "recording".to_string(),
@@ -388,6 +390,144 @@ fn demo_robot_profile() -> RobotProfile {
             "moveit-owned MuJoCo state mirror".to_string(),
         ],
     }
+}
+
+pub fn query_moveit_snapshot() -> MoveitSnapshotResponse {
+    let profile = demo_robot_profile();
+    let joints = demo_moveit_joints();
+    let joint_order = joints
+        .iter()
+        .map(|joint| joint.name.clone())
+        .collect::<Vec<_>>();
+
+    let objects = vec![
+        MoveitSceneObject {
+            name: "workbench".to_string(),
+            shape: "box".to_string(),
+            dims: "0.80 x 1.20 x 0.05".to_string(),
+            dimensions: vec![0.80, 1.20, 0.05],
+            frame: "world".to_string(),
+            status: "fixed".to_string(),
+        },
+        MoveitSceneObject {
+            name: "pick_target".to_string(),
+            shape: "cylinder".to_string(),
+            dims: "r=0.04 h=0.12".to_string(),
+            dimensions: vec![0.04, 0.12],
+            frame: "world".to_string(),
+            status: "target".to_string(),
+        },
+        MoveitSceneObject {
+            name: "safety_zone".to_string(),
+            shape: "sphere".to_string(),
+            dims: "r=0.18".to_string(),
+            dimensions: vec![0.18],
+            frame: "left_arm_base".to_string(),
+            status: "collision guard".to_string(),
+        },
+    ];
+
+    MoveitSnapshotResponse {
+        source: "demo".to_string(),
+        message: "Showing a read-only dora-moveit2 / MuJoCo mirror snapshot until live moveit state is connected.".to_string(),
+        robot_profile_id: profile.id,
+        robot_config_id: "nano-full-arm-demo".to_string(),
+        simulation_owner: profile.simulation_owner,
+        viewport_role: profile.viewport_role,
+        freshness: MoveitSnapshotFreshness {
+            status: "fallback".to_string(),
+            last_updated: "demo frame".to_string(),
+            source_label: "deterministic backend demo".to_string(),
+        },
+        joints,
+        end_effector_pose: MoveitEndEffectorPose {
+            frame: "left_gripper_tip".to_string(),
+            position: [0.32, -0.08, 0.24],
+            quaternion: [0.0, 0.18, 0.0, 0.98],
+            source: "demo moveit mirror".to_string(),
+        },
+        scene: MoveitPlanningScene {
+            status: "ready".to_string(),
+            object_count: objects.len(),
+            objects,
+        },
+        trajectory: MoveitTrajectorySummary {
+            status: "idle".to_string(),
+            waypoint_count: 0,
+            duration_seconds: 0.0,
+            message: "No plan requested; Studio is showing read-only mirror state.".to_string(),
+        },
+        visual_model: MoveitVisualModel {
+            model_id: "nano-full-mujoco-mirror".to_string(),
+            name: "Nano full MuJoCo visual mirror".to_string(),
+            format: "threejs-stl-viewer".to_string(),
+            source: "dora-moveit2 mirror contract".to_string(),
+            joint_order,
+        },
+    }
+}
+
+fn demo_moveit_joints() -> Vec<MoveitJointState> {
+    const UNIT: &str = "rad";
+    const STATUS: &str = "ready";
+    const SOURCE: &str = "demo moveit mirror";
+
+    vec![
+        MoveitJointState {
+            name: "shoulder_pan".to_string(),
+            value: 0.22,
+            unit: UNIT.to_string(),
+            lower_limit: -2.62,
+            upper_limit: 2.62,
+            status: STATUS.to_string(),
+            source: SOURCE.to_string(),
+        },
+        MoveitJointState {
+            name: "shoulder_lift".to_string(),
+            value: -0.48,
+            unit: UNIT.to_string(),
+            lower_limit: -1.90,
+            upper_limit: 1.90,
+            status: STATUS.to_string(),
+            source: SOURCE.to_string(),
+        },
+        MoveitJointState {
+            name: "elbow_flex".to_string(),
+            value: 0.86,
+            unit: UNIT.to_string(),
+            lower_limit: -2.10,
+            upper_limit: 2.10,
+            status: STATUS.to_string(),
+            source: SOURCE.to_string(),
+        },
+        MoveitJointState {
+            name: "wrist_flex".to_string(),
+            value: -0.34,
+            unit: UNIT.to_string(),
+            lower_limit: -1.80,
+            upper_limit: 1.80,
+            status: STATUS.to_string(),
+            source: SOURCE.to_string(),
+        },
+        MoveitJointState {
+            name: "wrist_roll".to_string(),
+            value: 0.18,
+            unit: UNIT.to_string(),
+            lower_limit: -3.14,
+            upper_limit: 3.14,
+            status: STATUS.to_string(),
+            source: SOURCE.to_string(),
+        },
+        MoveitJointState {
+            name: "gripper".to_string(),
+            value: 0.03,
+            unit: UNIT.to_string(),
+            lower_limit: 0.0,
+            upper_limit: 0.8,
+            status: STATUS.to_string(),
+            source: SOURCE.to_string(),
+        },
+    ]
 }
 
 pub fn query_moveit() -> MoveitStatus {
@@ -531,5 +671,73 @@ mod tests {
                 assert!(displays.contains(&display));
             }
         }
+    }
+
+    #[test]
+    fn demo_moveit_snapshot_keeps_mujoco_moveit_owned() {
+        let snapshot = query_moveit_snapshot();
+
+        assert_eq!(snapshot.source, "demo");
+        assert_eq!(snapshot.robot_profile_id, "nano-full-family");
+        assert_eq!(snapshot.robot_config_id, "nano-full-arm-demo");
+        assert!(snapshot.simulation_owner.contains("dora-moveit2"));
+        assert!(snapshot.viewport_role.contains("does not own simulation"));
+        assert_eq!(snapshot.joints.len(), 6);
+        assert_eq!(snapshot.scene.object_count, snapshot.scene.objects.len());
+        assert_eq!(snapshot.scene.objects.len(), 3);
+
+        let workbench = snapshot
+            .scene
+            .objects
+            .iter()
+            .find(|object| object.name == "workbench")
+            .expect("workbench object present");
+        assert_eq!(workbench.dimensions, vec![0.80, 1.20, 0.05]);
+
+        let pick_target = snapshot
+            .scene
+            .objects
+            .iter()
+            .find(|object| object.name == "pick_target")
+            .expect("pick_target object present");
+        assert_eq!(pick_target.dimensions, vec![0.04, 0.12]);
+
+        let safety_zone = snapshot
+            .scene
+            .objects
+            .iter()
+            .find(|object| object.name == "safety_zone")
+            .expect("safety_zone object present");
+        assert_eq!(safety_zone.dimensions, vec![0.18]);
+        assert_eq!(snapshot.trajectory.status, "idle");
+        assert_eq!(snapshot.visual_model.model_id, "nano-full-mujoco-mirror");
+    }
+
+    #[test]
+    fn demo_moveit_snapshot_joint_values_match_visual_model() {
+        let snapshot = query_moveit_snapshot();
+        let joint_names = snapshot
+            .joints
+            .iter()
+            .map(|joint| joint.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            joint_names,
+            vec![
+                "shoulder_pan",
+                "shoulder_lift",
+                "elbow_flex",
+                "wrist_flex",
+                "wrist_roll",
+                "gripper",
+            ]
+        );
+        assert_eq!(snapshot.visual_model.joint_order, joint_names);
+        assert!(snapshot
+            .joints
+            .iter()
+            .all(|joint| joint.source == "demo moveit mirror"));
+        assert!(snapshot.joints.iter().all(|joint| joint.unit == "rad"));
     }
 }

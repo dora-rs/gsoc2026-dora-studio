@@ -5,6 +5,8 @@ mod mock;
 mod models;
 mod runtime;
 
+use std::path::PathBuf;
+
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -12,12 +14,14 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use tower_http::cors::CorsLayer;
+use tower_http::{cors::CorsLayer, services::ServeDir};
 
 #[tokio::main]
 async fn main() {
     let runtime = runtime::RuntimeManager::new();
+    let models_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../models");
     let app = Router::new()
+        .nest_service("/models", ServeDir::new(models_dir))
         .route("/api/health", get(health))
         .route("/api/system/status", get(system_status))
         .route("/api/dataflows", get(dataflows))
@@ -39,6 +43,7 @@ async fn main() {
         .route("/api/dviz/snapshot", get(dviz_snapshot))
         .route("/api/robot/profile", get(robot_profile))
         .route("/api/moveit/status", get(moveit_status))
+        .route("/api/moveit/snapshot", get(moveit_snapshot))
         .with_state(runtime)
         .layer(CorsLayer::permissive());
 
@@ -152,6 +157,10 @@ async fn moveit_status() -> Json<models::MoveitStatus> {
     }
 
     Json(status)
+}
+
+async fn moveit_snapshot() -> Json<models::MoveitSnapshotResponse> {
+    Json(external::query_moveit_snapshot())
 }
 
 async fn dataflows() -> Result<Json<Vec<models::DataflowSummary>>, ApiError> {
