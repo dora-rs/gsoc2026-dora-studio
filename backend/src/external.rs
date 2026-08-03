@@ -260,16 +260,16 @@ pub fn query_robot_profile() -> RobotProfileResponse {
 
 fn demo_robot_profile() -> RobotProfile {
     RobotProfile {
-        id: "nano-so101-family".to_string(),
-        name: "Nano SO101 Family".to_string(),
+        id: "nano-full-family".to_string(),
+        name: "Nano Full Family".to_string(),
         family: "nano manipulator platform".to_string(),
-        summary: "Adaptable profile for SO101-style arms, multiple cameras, optional mobility, and optional lidar.".to_string(),
+        summary: "Capability-first profile for the Nano full robot, camera modules, optional base, and optional lidar.".to_string(),
         simulation_owner: "dora-moveit2 / MuJoCo".to_string(),
         viewport_role: "Studio mirrors moveit-side simulated state; it does not own simulation.".to_string(),
         modules: vec![
             RobotModule {
                 id: "left-arm".to_string(),
-                name: "Left SO101 Arm".to_string(),
+                name: "Left Nano Arm".to_string(),
                 kind: "arm".to_string(),
                 role: "manipulation".to_string(),
                 transport: "dora dataflow".to_string(),
@@ -282,7 +282,7 @@ fn demo_robot_profile() -> RobotProfile {
             },
             RobotModule {
                 id: "right-arm".to_string(),
-                name: "Right SO101 Arm".to_string(),
+                name: "Right Nano Arm".to_string(),
                 kind: "arm".to_string(),
                 role: "manipulation".to_string(),
                 transport: "dora dataflow".to_string(),
@@ -352,7 +352,7 @@ fn demo_robot_profile() -> RobotProfile {
                 name: "Teleoperation".to_string(),
                 status: "planned".to_string(),
                 owner: "dorobot dataflow".to_string(),
-                summary: "Manual control path for SO101-style robot operation.".to_string(),
+                summary: "Manual control path for Nano full robot operation.".to_string(),
             },
             RobotWorkflow {
                 id: "recording".to_string(),
@@ -431,7 +431,7 @@ pub fn query_moveit_snapshot() -> MoveitSnapshotResponse {
         source: "demo".to_string(),
         message: "Showing a read-only dora-moveit2 / MuJoCo mirror snapshot until live moveit state is connected.".to_string(),
         robot_profile_id: profile.id,
-        robot_config_id: "so101-left-arm-demo".to_string(),
+        robot_config_id: "nano-full-arm-demo".to_string(),
         simulation_owner: profile.simulation_owner,
         viewport_role: profile.viewport_role,
         freshness: MoveitSnapshotFreshness {
@@ -458,9 +458,9 @@ pub fn query_moveit_snapshot() -> MoveitSnapshotResponse {
             message: "No plan requested; Studio is showing read-only mirror state.".to_string(),
         },
         visual_model: MoveitVisualModel {
-            model_id: "so101-mujoco-mirror".to_string(),
-            name: "SO-101 MuJoCo visual mirror".to_string(),
-            format: "css-articulated-preview".to_string(),
+            model_id: "nano-full-mujoco-mirror".to_string(),
+            name: "Nano full MuJoCo visual mirror".to_string(),
+            format: "threejs-stl-viewer".to_string(),
             source: "dora-moveit2 mirror contract".to_string(),
             joint_order,
         },
@@ -678,8 +678,8 @@ mod tests {
         let snapshot = query_moveit_snapshot();
 
         assert_eq!(snapshot.source, "demo");
-        assert_eq!(snapshot.robot_profile_id, "nano-so101-family");
-        assert_eq!(snapshot.robot_config_id, "so101-left-arm-demo");
+        assert_eq!(snapshot.robot_profile_id, "nano-full-family");
+        assert_eq!(snapshot.robot_config_id, "nano-full-arm-demo");
         assert!(snapshot.simulation_owner.contains("dora-moveit2"));
         assert!(snapshot.viewport_role.contains("does not own simulation"));
         assert_eq!(snapshot.joints.len(), 6);
@@ -710,7 +710,7 @@ mod tests {
             .expect("safety_zone object present");
         assert_eq!(safety_zone.dimensions, vec![0.18]);
         assert_eq!(snapshot.trajectory.status, "idle");
-        assert_eq!(snapshot.visual_model.model_id, "so101-mujoco-mirror");
+        assert_eq!(snapshot.visual_model.model_id, "nano-full-mujoco-mirror");
     }
 
     #[test]

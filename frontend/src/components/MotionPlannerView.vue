@@ -79,36 +79,22 @@
     <article class="motion-panel motion-right">
       <div class="motion-section mujoco-mirror-section">
         <div class="motion-section-header">
-          <h3>SO-101 MuJoCo Visual Mirror</h3>
+          <h3>Nano Full MuJoCo Visual Mirror</h3>
           <span class="pill warning">mirror only</span>
         </div>
         <div class="mujoco-mirror-card">
-          <div class="mujoco-stage" :style="visualJointStyle">
-            <div class="mujoco-grid-floor"></div>
-            <div class="so101-base">
-              <span>SO-101</span>
-            </div>
-            <div class="so101-arm shoulder-link">
-              <div class="so101-joint shoulder-joint"></div>
-              <div class="so101-arm elbow-link">
-                <div class="so101-joint elbow-joint"></div>
-                <div class="so101-arm wrist-link">
-                  <div class="so101-joint wrist-joint"></div>
-                  <div class="so101-gripper">
-                    <span class="gripper-finger left"></span>
-                    <span class="gripper-finger right"></span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="mujoco-target-dot"></div>
-          </div>
-          <div class="mujoco-mirror-details">
+          <NanoArmViewer
+            :xml-url="nanoArmResources.xmlUrl"
+            :asset-base-url="nanoArmResources.assetBaseUrl"
+            :joint-values="nanoArmJointState"
+            @loaded="updateNanoArmJointOrder"
+          />
+          <div class="mujoco-mirror-details" :title="nanoArmResources.xmlUrl">
             <span>{{ moveitSnapshot.visualModel.name }}</span>
             <strong>{{ moveitSnapshot.robotConfigId }}</strong>
             <p>{{ moveitSnapshot.viewportRole }}</p>
             <div class="robot-display-tags">
-              <span v-for="joint in moveitSnapshot.visualModel.jointOrder" :key="joint">{{ joint }}</span>
+              <span v-for="joint in nanoArmJointOrder" :key="joint">{{ joint }}</span>
             </div>
           </div>
         </div>
@@ -128,7 +114,13 @@
         <div class="joint-goal-grid">
           <div v-for="joint in goalJointRows" :key="joint.name" class="joint-goal-cell">
             <label>{{ joint.name }}</label>
-            <input type="text" :value="joint.value" disabled />
+            <input
+              v-model.number="nanoArmJointState[joint.name]"
+              type="number"
+              :min="joint.lower"
+              :max="joint.upper"
+              :step="joint.name === 'joint6' ? 0.001 : 0.01"
+            />
           </div>
         </div>
 
@@ -226,8 +218,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import {
+  BACKEND_BASE_URL,
   getMoveitSnapshot,
   getMoveitStatus,
   getRobotProfile,
@@ -236,21 +229,30 @@ import {
   type MoveitStatusResponse,
   type RobotProfileResponse,
 } from '../api'
+import {
+  buildNanoArmModelResources,
+  createNanoArmJointState,
+  findNanoArmSnapshotJoint,
+  seedNanoArmJointStateFromSnapshot,
+  NANO_ARM_JOINT_LIMITS,
+  NANO_ARM_JOINT_NAMES,
+} from '../lib/nanoArmModel'
+import NanoArmViewer from './NanoArmViewer.vue'
 
 const fallbackRobotProfile: RobotProfileResponse = {
   source: 'frontend fallback',
   message: 'Backend API is not connected; showing the frontend fallback robot profile.',
   profile: {
-    id: 'nano-so101-family',
-    name: 'Nano SO101 Family',
+    id: 'nano-full-family',
+    name: 'Nano Full Family',
     family: 'nano manipulator platform',
-    summary: 'Capability-first profile for SO101 arms, camera modules, optional base, and optional lidar.',
+    summary: 'Capability-first profile for the Nano full robot, camera modules, optional base, and optional lidar.',
     simulationOwner: 'dora-moveit2 / MuJoCo',
     viewportRole: 'Studio mirrors moveit-side simulated state; it does not own simulation.',
     modules: [
       {
         id: 'left-arm',
-        name: 'Left SO101 Arm',
+        name: 'Left Nano Arm',
         kind: 'arm',
         role: 'manipulation',
         transport: 'dora dataflow',
@@ -317,9 +319,9 @@ const fallbackRobotProfile: RobotProfileResponse = {
 
 const fallbackMoveitSnapshot: MoveitSnapshotResponse = {
   source: 'frontend fallback',
-  message: 'Backend API is not connected; showing a read-only SO-101 MuJoCo mirror fallback.',
-  robotProfileId: 'nano-so101-family',
-  robotConfigId: 'so101-left-arm-demo',
+  message: 'Backend API is not connected; showing a read-only Nano full MuJoCo mirror fallback.',
+  robotProfileId: 'nano-full-family',
+  robotConfigId: 'nano-full-arm-demo',
   simulationOwner: 'dora-moveit2 / MuJoCo',
   viewportRole: 'Studio mirrors moveit-side simulated state; it does not own simulation.',
   freshness: {
@@ -357,9 +359,9 @@ const fallbackMoveitSnapshot: MoveitSnapshotResponse = {
     message: 'No plan requested; Studio is showing read-only mirror state.',
   },
   visualModel: {
-    modelId: 'so101-mujoco-mirror',
-    name: 'SO-101 MuJoCo visual mirror',
-    format: 'css-articulated-preview',
+    modelId: 'nano-full-mujoco-mirror',
+    name: 'Nano full MuJoCo visual mirror',
+    format: 'threejs-stl-viewer',
     source: 'dora-moveit2 mirror contract',
     jointOrder: ['shoulder_pan', 'shoulder_lift', 'elbow_flex', 'wrist_flex', 'wrist_roll', 'gripper'],
   },
@@ -381,6 +383,22 @@ const optionalModules = computed(() => robotProfile.value.modules.filter((module
 const mappedModuleCount = computed(() => robotProfile.value.modules.filter((module) => module.linkedDisplays.length > 0).length)
 const moveitSnapshot = computed(() => moveitSnapshotData.value)
 const snapshotJoints = computed(() => moveitSnapshot.value.joints)
+const nanoArmResources = buildNanoArmModelResources(BACKEND_BASE_URL)
+const nanoArmJointState = reactive(createNanoArmJointState())
+const nanoArmJointOrder = ref([...NANO_ARM_JOINT_NAMES])
+const jointStateSeeded = ref(false)
+const nanoArmJointControls = computed(() => nanoArmJointOrder.value.map((name) => {
+  const joint = findNanoArmSnapshotJoint(snapshotJoints.value, name)
+  const limits = NANO_ARM_JOINT_LIMITS[name]
+
+  return {
+    name,
+    lower: limits.lower,
+    upper: limits.upper,
+    unit: joint?.unit ?? 'rad',
+    status: joint?.status ?? 'local goal',
+  }
+}))
 const snapshotSceneObjects = computed(() => moveitSnapshot.value.scene.objects)
 const snapshotTrajectory = computed(() => moveitSnapshot.value.trajectory)
 const snapshotPoseRows = computed(() => [
@@ -393,27 +411,23 @@ const snapshotPoseRows = computed(() => [
     values: moveitSnapshot.value.endEffectorPose.quaternion.map((value) => value.toFixed(2)),
   },
 ])
-const visualJointStyle = computed(() => {
-  const [base, shoulder, elbow, wrist, roll, gripper] = moveitSnapshot.value.joints
-  return {
-    '--base-angle': `${(base?.value ?? 0) * 32}deg`,
-    '--shoulder-angle': `${-34 + (shoulder?.value ?? 0) * 18}deg`,
-    '--elbow-angle': `${42 + (elbow?.value ?? 0) * 16}deg`,
-    '--wrist-angle': `${-18 + (wrist?.value ?? 0) * 20}deg`,
-    '--roll-angle': `${(roll?.value ?? 0) * 28}deg`,
-    '--gripper-open': `${24 + (gripper?.value ?? 0) * 30}px`,
-  }
-})
 const snapshotSourceLabel = computed(() => `${moveitSnapshotSource.value} · ${moveitSnapshot.value.source}`)
 
-const goalJointRows = computed(() => moveitSnapshot.value.visualModel.jointOrder.map((name) => {
-  const joint = moveitSnapshot.value.joints.find((item) => item.name === name)
-  return {
-    name,
-    value: joint ? joint.value.toFixed(2) : '0.00',
-  }
-}))
+const goalJointRows = computed(() => nanoArmJointControls.value)
 const trajectoryColumnCount = computed(() => goalJointRows.value.length + 2)
+
+function updateNanoArmJointOrder(jointOrder: typeof nanoArmJointOrder.value) {
+  nanoArmJointOrder.value = jointOrder.length > 0 ? jointOrder : [...NANO_ARM_JOINT_NAMES]
+}
+
+function seedNanoArmJointState() {
+  if (jointStateSeeded.value) {
+    return
+  }
+
+  Object.assign(nanoArmJointState, seedNanoArmJointStateFromSnapshot(moveitSnapshot.value.joints))
+  jointStateSeeded.value = true
+}
 
 onMounted(async () => {
   const [moveitResult, robotProfileResult, moveitSnapshotResult] = await Promise.all([
@@ -430,5 +444,6 @@ onMounted(async () => {
   robotProfileSource.value = robotProfileResult.source
   moveitSnapshotData.value = moveitSnapshotResult.data
   moveitSnapshotSource.value = moveitSnapshotResult.source
+  seedNanoArmJointState()
 })
 </script>

@@ -77,6 +77,7 @@ export type RuntimeStateResponse = {
 const DEFAULT_API_BASE_URL = 'http://127.0.0.1:3001/api'
 const configuredApiBaseUrl = import.meta.env.VITE_DORA_STUDIO_API_URL as string | undefined
 const API_BASE_URL = normalizeApiBaseUrl(configuredApiBaseUrl || DEFAULT_API_BASE_URL)
+export const BACKEND_BASE_URL = new URL(API_BASE_URL).origin
 
 function normalizeApiBaseUrl(value: string) {
   return value.replace(/\/+$/, '')
