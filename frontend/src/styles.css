@@ -2364,7 +2364,8 @@ td span {
   min-width: 0;
 }
 
-.nano-arm-viewer {
+.nano-arm-viewer,
+.nano-robot-viewer {
   background: radial-gradient(circle at top, #1d2940, #101726 70%);
   border: 1px solid #223146;
   border-radius: 24px;
@@ -2373,7 +2374,8 @@ td span {
   position: relative;
 }
 
-.nano-arm-viewer::before {
+.nano-arm-viewer::before,
+.nano-robot-viewer::before {
   background:
     linear-gradient(rgb(96 165 250 / 12%) 1px, transparent 1px),
     linear-gradient(90deg, rgb(96 165 250 / 12%) 1px, transparent 1px);
@@ -2385,7 +2387,8 @@ td span {
   position: absolute;
 }
 
-.nano-arm-viewer-canvas {
+.nano-arm-viewer-canvas,
+.nano-robot-viewer-canvas {
   display: block;
   inset: 0;
   height: 100%;
@@ -2394,7 +2397,9 @@ td span {
 }
 
 .nano-arm-viewer-status,
-.nano-arm-viewer-hint {
+.nano-arm-viewer-hint,
+.nano-robot-viewer-status,
+.nano-robot-viewer-hint {
   backdrop-filter: blur(12px);
   background: rgb(15 23 42 / 72%);
   border: 1px solid rgb(100 116 139 / 24%);
@@ -2404,7 +2409,8 @@ td span {
   z-index: 2;
 }
 
-.nano-arm-viewer-status {
+.nano-arm-viewer-status,
+.nano-robot-viewer-status {
   border-radius: 18px;
   display: grid;
   gap: 4px;
@@ -2414,7 +2420,8 @@ td span {
   top: 16px;
 }
 
-.nano-arm-viewer-status span {
+.nano-arm-viewer-status span,
+.nano-robot-viewer-status span {
   color: #7dd3fc;
   font-size: 11px;
   font-weight: 900;
@@ -2422,30 +2429,36 @@ td span {
   text-transform: uppercase;
 }
 
-.nano-arm-viewer-status strong {
+.nano-arm-viewer-status strong,
+.nano-robot-viewer-status strong {
   font-size: 14px;
   line-height: 1.4;
 }
 
-.nano-arm-viewer-status small {
+.nano-arm-viewer-status small,
+.nano-robot-viewer-status small {
   color: #94a3b8;
   font-size: 11px;
   line-height: 1.45;
 }
 
-.nano-arm-viewer-status.ready span {
+.nano-arm-viewer-status.ready span,
+.nano-robot-viewer-status.ready span {
   color: #86efac;
 }
 
-.nano-arm-viewer-status.error span {
+.nano-arm-viewer-status.error span,
+.nano-robot-viewer-status.error span {
   color: #fca5a5;
 }
 
-.nano-arm-viewer-status.loading span {
+.nano-arm-viewer-status.loading span,
+.nano-robot-viewer-status.loading span {
   color: #7dd3fc;
 }
 
-.nano-arm-viewer-hint {
+.nano-arm-viewer-hint,
+.nano-robot-viewer-hint {
   border-radius: 999px;
   bottom: 16px;
   font-size: 12px;
@@ -2453,26 +2466,32 @@ td span {
   right: 16px;
 }
 
-[data-theme="dark"] .nano-arm-viewer {
+[data-theme="dark"] .nano-arm-viewer,
+[data-theme="dark"] .nano-robot-viewer {
   background: radial-gradient(circle at top, #162133, #0b1220 70%);
   border-color: #334155;
 }
 
 [data-theme="dark"] .nano-arm-viewer-status,
-[data-theme="dark"] .nano-arm-viewer-hint {
+[data-theme="dark"] .nano-arm-viewer-hint,
+[data-theme="dark"] .nano-robot-viewer-status,
+[data-theme="dark"] .nano-robot-viewer-hint {
   background: rgb(15 23 42 / 80%);
   border-color: rgb(148 163 184 / 20%);
 }
 
-[data-theme="dark"] .nano-arm-viewer-status span {
+[data-theme="dark"] .nano-arm-viewer-status span,
+[data-theme="dark"] .nano-robot-viewer-status span {
   color: #93c5fd;
 }
 
-[data-theme="dark"] .nano-arm-viewer-status.ready span {
+[data-theme="dark"] .nano-arm-viewer-status.ready span,
+[data-theme="dark"] .nano-robot-viewer-status.ready span {
   color: #86efac;
 }
 
-[data-theme="dark"] .nano-arm-viewer-status.error span {
+[data-theme="dark"] .nano-arm-viewer-status.error span,
+[data-theme="dark"] .nano-robot-viewer-status.error span {
   color: #fda4af;
 }
 
