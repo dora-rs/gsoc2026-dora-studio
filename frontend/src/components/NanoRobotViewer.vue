@@ -1,14 +1,14 @@
 <template>
-  <div ref="viewportRef" class="nano-arm-viewer" :class="viewerState">
-    <canvas ref="canvasRef" class="nano-arm-viewer-canvas" aria-label="Nano arm 3D viewer"></canvas>
+  <div ref="viewportRef" class="nano-robot-viewer" :class="viewerState">
+    <canvas ref="canvasRef" class="nano-robot-viewer-canvas" :aria-label="viewerLabel"></canvas>
 
-    <div class="nano-arm-viewer-status" :class="viewerState">
+    <div class="nano-robot-viewer-status" :class="viewerState">
       <span>{{ statusBadge }}</span>
       <strong>{{ viewerMessage }}</strong>
       <small>{{ viewerDetails }}</small>
     </div>
 
-    <div class="nano-arm-viewer-hint">Drag to orbit • Scroll to zoom • Right-drag to pan</div>
+    <div class="nano-robot-viewer-hint">Drag to orbit • Scroll to zoom • Right-drag to pan</div>
   </div>
 </template>
 
@@ -26,6 +26,7 @@ import {
   type NanoArmJointName,
   type NanoArmJointState,
 } from '../lib/nanoArmModel'
+import type { NanoRobotBasePose } from '../lib/nanoRobotMotion'
 
 type NanoArmMeshAsset = {
   file: string
@@ -81,6 +82,8 @@ const props = defineProps<{
   xmlUrl: string
   assetBaseUrl: string
   jointValues: NanoArmJointState
+  basePose: NanoRobotBasePose
+  viewerLabel: string
 }>()
 
 const emit = defineEmits<{
@@ -342,7 +345,7 @@ function buildGeomObject(geom: NanoArmGeomSpec, model: NanoArmModelSpec) {
 
   const primitive = createPrimitiveMesh(geom)
   if (!primitive) {
-    throw new Error('Unsupported Nano arm geometry.')
+    throw new Error('Unsupported Nano robot geometry.')
   }
 
   primitive.position.copy(geom.position)
@@ -444,6 +447,15 @@ function frameCameraToModel() {
   controls.update()
 }
 
+function applyBasePose() {
+  if (!modelRoot) {
+    return
+  }
+
+  modelRoot.position.set(props.basePose.x, props.basePose.y, 0)
+  modelRoot.rotation.set(0, 0, props.basePose.yaw)
+}
+
 function applyJointValues() {
   for (const jointName of NANO_ARM_JOINT_NAMES) {
     const jointNode = jointNodes.get(jointName)
@@ -459,7 +471,7 @@ function applyJointValues() {
 
 async function initializeScene() {
   if (!canvasRef.value) {
-    throw new Error('Nano arm viewer canvas is not available.')
+    throw new Error('Nano robot viewer canvas is not available.')
   }
 
   renderer = new THREE.WebGLRenderer({
@@ -527,12 +539,12 @@ function animate() {
 
 async function loadAndRenderModel() {
   if (!scene) {
-    throw new Error('Nano arm scene has not been initialized.')
+    throw new Error('Nano robot scene has not been initialized.')
   }
 
   viewerState.value = 'loading'
   viewerMessage.value = 'Loading nano_full.xml from the backend models path...'
-  viewerDetails.value = 'Resolving Nano full STL assets and arm joint layout.'
+  viewerDetails.value = 'Resolving Nano full STL assets and robot joint layout.'
 
   const model = await loadNanoArmModel()
   if (disposed) {
@@ -550,12 +562,13 @@ async function loadAndRenderModel() {
   }
 
   syncRendererSize()
+  applyBasePose()
   frameCameraToModel()
   applyJointValues()
 
   viewerState.value = 'ready'
   viewerMessage.value = 'Loaded nano_full.xml from backend models.'
-  viewerDetails.value = `${model.meshGeometries.size} STL meshes • ${model.jointOrder.length} arm joints`
+  viewerDetails.value = `${model.meshGeometries.size} STL meshes • ${model.jointOrder.length} robot joints`
   emit('loaded', model.jointOrder)
 }
 
@@ -563,6 +576,14 @@ watch(
   () => props.jointValues,
   () => {
     applyJointValues()
+  },
+  { deep: true },
+)
+
+watch(
+  () => props.basePose,
+  () => {
+    applyBasePose()
   },
   { deep: true },
 )
