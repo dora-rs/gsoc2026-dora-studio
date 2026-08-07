@@ -105,15 +105,24 @@
     <article class="viz-panel viz-center">
       <div class="viz-panel-header">
         <h2>3D Viewport</h2>
-        <span class="pill">metadata preview</span>
+        <div class="viz-panel-actions">
+          <span class="pill success">Nano RobotModel mirror</span>
+          <span class="pill warning">local preview</span>
+        </div>
       </div>
-      <div class="viewport-placeholder">
-        <div class="viewport-grid-bg"></div>
-        <div class="viewport-center">
-          <div class="viewport-icon">{{ selectedTopicInitial }}</div>
-          <strong>{{ viewportTitle }}</strong>
-          <p>{{ viewportSubtitle }}</p>
-          <div class="viewport-summary-grid">
+      <div class="viz-robot-viewer-card">
+        <NanoRobotViewer
+          :xml-url="nanoArmResources.xmlUrl"
+          :asset-base-url="nanoArmResources.assetBaseUrl"
+          :joint-values="nanoArmJointState"
+          :base-pose="nanoRobotBasePose"
+          viewer-label="Nano full RobotModel visual mirror"
+        />
+        <div class="viz-robot-viewer-caption">
+          <span>{{ robotModelDisplayLabel }}</span>
+          <strong>Simulated base preview</strong>
+          <p>Visualization/dviz owns the main 3D canvas. These controls only update the local viewer pose; no command is published.</p>
+          <div class="viewport-summary-grid compact">
             <div class="viewport-summary-item">
               <strong>{{ enabledDisplays.length }}/{{ snapshotSummary.displayCount }}</strong>
               <span>enabled displays</span>
@@ -127,19 +136,28 @@
               <span>ready topics</span>
             </div>
           </div>
-          <div class="viewport-boundary-note">
-            <span>Simulation owner</span>
-            <strong>{{ robotProfile.simulationOwner }}</strong>
-            <small>{{ robotProfile.viewportRole }}</small>
-          </div>
-          <span class="viewport-hint">{{ viewportHint }}</span>
         </div>
       </div>
-      <div class="viewport-controls">
-        <button type="button" :disabled="!selectedTopic" @click="clearTopicSelection">Clear selection</button>
-        <button type="button" @click="showReadyTopics">Ready topics</button>
-        <button type="button" @click="showAllTopics">All topics</button>
-        <span class="fps-indicator">metadata mode</span>
+      <div class="viz-base-control-panel">
+        <div class="viz-base-control-header">
+          <div>
+            <span>Base Control</span>
+            <strong>Local viewer pose only</strong>
+          </div>
+          <button type="button" class="secondary" @click="applyBaseCommand('reset')">Reset</button>
+        </div>
+        <div class="viz-base-control-grid">
+          <button type="button" @click="applyBaseCommand('forward')">Forward</button>
+          <button type="button" class="secondary" @click="applyBaseCommand('turn-left')">Turn Left</button>
+          <button type="button" class="secondary" @click="applyBaseCommand('turn-right')">Turn Right</button>
+          <button type="button" @click="applyBaseCommand('backward')">Backward</button>
+        </div>
+        <div class="viz-base-pose-grid">
+          <div v-for="row in basePoseRows" :key="row.label">
+            <span>{{ row.label }}</span>
+            <strong>{{ row.value }}</strong>
+          </div>
+        </div>
       </div>
     </article>
 
@@ -295,24 +313,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { BACKEND_BASE_URL, getDvizDisplays, getDvizSnapshot, getDvizStatus, getDvizTopics, getRobotProfile, type ApiResult, type ApiSource, type DvizDisplayResponse, type DvizDisplaysResponse, type DvizSnapshotResponse, type DvizStatusResponse, type DvizTopicResponse, type DvizTopicsResponse, type RobotModuleResponse, type RobotProfileResponse } from '../api'
+import { buildNanoArmModelResources, createNanoArmJointState } from '../lib/nanoArmModel'
 import {
-  getDvizDisplays,
-  getDvizSnapshot,
-  getDvizStatus,
-  getDvizTopics,
-  getRobotProfile,
-  type ApiResult,
-  type ApiSource,
-  type DvizDisplayResponse,
-  type DvizDisplaysResponse,
-  type DvizSnapshotResponse,
-  type DvizStatusResponse,
-  type DvizTopicResponse,
-  type DvizTopicsResponse,
-  type RobotModuleResponse,
-  type RobotProfileResponse,
-} from '../api'
+  applyNanoRobotBaseCommand,
+  createNanoRobotBasePose,
+  formatNanoRobotPoseValue,
+  formatNanoRobotYawDegrees,
+  type NanoRobotBaseCommand,
+} from '../lib/nanoRobotMotion'
+import NanoRobotViewer from './NanoRobotViewer.vue'
 
 const fallbackDvizStatus: DvizStatusResponse = {
   installed: false,
@@ -514,6 +525,9 @@ const selectedRobotModuleId = ref<string | null>(fallbackRobotProfile.profile.mo
 const robotModulesExpanded = ref(false)
 const isRefreshing = ref(false)
 const refreshError = ref<string | null>(null)
+const nanoArmResources = buildNanoArmModelResources(BACKEND_BASE_URL)
+const nanoArmJointState = reactive(createNanoArmJointState())
+const nanoRobotBasePose = reactive(createNanoRobotBasePose())
 
 const backendConnected = computed(() => (
   statusApiSource.value === 'connected'
@@ -589,32 +603,23 @@ const linkedDisplays = computed(() => {
 })
 const snapshotSummary = computed(() => snapshotData.value.summary)
 const readyTopicCount = computed(() => snapshotSummary.value.readyTopicCount)
-
-const viewportTitle = computed(() => {
-  if (!selectedTopic.value) {
-    return 'Visualization metadata preview'
+const basePoseRows = computed(() => [
+  { label: 'x', value: `${formatNanoRobotPoseValue(nanoRobotBasePose.x)} m` },
+  { label: 'y', value: `${formatNanoRobotPoseValue(nanoRobotBasePose.y)} m` },
+  { label: 'yaw', value: formatNanoRobotYawDegrees(nanoRobotBasePose.yaw) },
+])
+const robotModelDisplay = computed(() => (
+  displayData.value.displays.find((display) => display.id === 'robotmodel')
+  ?? displayData.value.displays.find((display) => display.name === 'RobotModel')
+  ?? null
+))
+const robotModelDisplayLabel = computed(() => {
+  if (!robotModelDisplay.value) {
+    return 'RobotModel mirror'
   }
 
-  return `${selectedTopic.value.dataType} preview`
+  return `${robotModelDisplay.value.name} · ${robotModelDisplay.value.status}`
 })
-
-const viewportSubtitle = computed(() => {
-  if (!selectedTopic.value) {
-    return 'Select a topic to inspect metadata before live 3D streaming is wired.'
-  }
-
-  return `${selectedTopic.value.name} · ${selectedTopic.value.summary}`
-})
-
-const viewportHint = computed(() => {
-  const modulePrefix = selectedRobotModule.value
-    ? `${selectedRobotModule.value.name}: ${moduleLinkedDisplayIds.value.size} displays / ${moduleSourceTopicNames.value.size} topics`
-    : 'No robot module selected'
-
-  return `${modulePrefix} · ${enabledDisplays.value.length}/${snapshotSummary.value.displayCount} displays enabled · snapshot ${snapshotApiSource.value}`
-})
-
-const selectedTopicInitial = computed(() => selectedTopic.value?.dataType.slice(0, 1).toUpperCase() ?? 'V')
 const refreshLabel = computed(() => (isRefreshing.value ? 'Refreshing...' : 'Refresh'))
 const refreshMessage = computed(() => refreshError.value ?? topicData.value.message)
 
@@ -685,6 +690,10 @@ function selectTopic(name: string) {
   selectedTopicName.value = name
 }
 
+function applyBaseCommand(command: NanoRobotBaseCommand) {
+  Object.assign(nanoRobotBasePose, applyNanoRobotBaseCommand(nanoRobotBasePose, command))
+}
+
 function selectRobotModule(id: string) {
   selectedRobotModuleId.value = id
   const module = robotProfile.value.modules.find((item: RobotModuleResponse) => item.id === id)
@@ -694,18 +703,6 @@ function selectRobotModule(id: string) {
     topicSearch.value = ''
     selectedTopicName.value = firstTopic
   }
-}
-
-function clearTopicSelection() {
-  selectedTopicName.value = null
-}
-
-function showReadyTopics() {
-  topicSearch.value = 'ready'
-}
-
-function showAllTopics() {
-  topicSearch.value = ''
 }
 
 function toggleDisplay(id: string) {

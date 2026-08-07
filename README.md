@@ -2,7 +2,7 @@
 
 A GSoC 2026 prototype for visualizing, running, and debugging DORA applications.
 
-The current prototype focuses on a practical Studio workflow: discover local dataflows, inspect their graph structure, start and stop a selected dataflow, monitor runtime state, review logs, and preview future robotics visualization and motion-planning panels.
+The current prototype focuses on a practical Studio workflow: discover local dataflows, inspect their graph structure, start and stop a selected dataflow, monitor runtime state, review logs, and mirror Nano Full robotics state through shared Visualization and Motion Planner views.
 
 ## Current Scope
 
@@ -12,12 +12,12 @@ Implemented areas:
 - Dataflow Explorer for local `dataflow.yml` discovery, graph rendering, node inspection, and parser diagnostics.
 - Run & Monitor page for selecting a discovered dataflow and controlling it through the backend runtime bridge.
 - Logs & Events page with runtime log polling, log-level grouping, raw stream view, and connected/fallback states.
-- Visualization page with a dviz-oriented 3D viewport layout and display property panels.
-- Motion Planner page with robot profile data, read-only MoveIt/MuJoCo snapshot summaries, Nano Full Three.js visual mirror, planning scene, trajectory preview, and IK solver panels.
-- `models/` shared MuJoCo XML/STL assets used by the Motion Planner viewer.
+- Visualization page with a dviz-oriented 3D viewport layout, shared Nano Full robot viewer, and simulated local base controls.
+- Motion Planner page with robot profile data, read-only MoveIt/MuJoCo snapshot summaries, shared Nano Full Three.js visual mirror, planning scene, trajectory preview, and IK solver panels.
+- `models/` shared MuJoCo XML/STL assets used by the shared Nano robot viewer.
 - Light/dark theme toggle with local preference persistence.
 
-The Visualization and Motion Planner pages are product-style layouts prepared for Phase 2 integration. They now expose read-only dviz and MoveIt/MuJoCo metadata boundaries, but they do not yet stream real 3D data or execute motion planning commands.
+The Visualization and Motion Planner pages now share a Nano Full robot viewer foundation with different page responsibilities. Visualization owns the main dviz-style canvas and a local simulated base pose preview, while Motion Planner keeps the arm-focused preview and fixed base pose. Neither page streams real 3D data or executes motion planning commands.
 
 ## Repository Layout
 
@@ -25,7 +25,7 @@ The Visualization and Motion Planner pages are product-style layouts prepared fo
 backend/   Rust Axum API server for dataflow discovery, runtime control, logs, and external tool status checks
 frontend/  Vue 3 + Vite frontend for the Studio prototype
 examples/  Example DORA dataflows used by the prototype
-models/    Self-generated MuJoCo XML/STL assets used by the Motion Planner viewer
+models/    Self-generated MuJoCo XML/STL assets used by the shared Nano robot viewer
 ```
 
 ## Prerequisites
@@ -83,8 +83,8 @@ Recommended walkthrough order:
 2. Open Dataflow Explorer to select a discovered dataflow and inspect its graph, nodes, edges, and diagnostics.
 3. Open Run & Monitor to start the selected dataflow, refresh runtime status, and inspect node metrics.
 4. Open Logs & Events to review grouped info, warning, and error logs from the runtime API or fallback data.
-5. Open Visualization to inspect backend-provided dviz topics/displays, select topics, filter metadata, toggle displays locally, refresh the snapshot, and verify the robot profile plus viewport mirror summary updates.
-6. Open Motion Planner to show the profile-bound dora-moveit2 control surface, read-only MoveIt snapshot, Nano Full MuJoCo visual mirror, scene objects, trajectories, IK, and disabled execution controls.
+5. Open Visualization to inspect backend-provided dviz topics/displays, select topics, filter metadata, toggle displays locally, refresh the snapshot, and verify the shared Nano Full viewer plus local base preview updates.
+6. Open Motion Planner to show the profile-bound dora-moveit2 control surface, read-only MoveIt snapshot, shared Nano Full MuJoCo visual mirror, scene objects, trajectories, IK, and disabled execution controls.
 7. Use the sidebar theme toggle to verify light and dark presentation.
 8. Use Export report to download a Markdown snapshot of the current prototype state.
 
@@ -126,7 +126,7 @@ cargo test --manifest-path backend/Cargo.toml
 npm --prefix frontend run build
 ```
 
-For UI changes, also run the backend and frontend locally, then walk through the six Studio pages in a browser.
+For UI changes, also run the backend and frontend locally, then walk through the Studio pages in a browser and confirm the shared Nano Full viewer behaves correctly in both Motion Planner and Visualization.
 
 ## Current Limitations
 

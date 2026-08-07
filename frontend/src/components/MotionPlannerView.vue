@@ -83,10 +83,12 @@
           <span class="pill warning">mirror only</span>
         </div>
         <div class="mujoco-mirror-card">
-          <NanoArmViewer
+          <NanoRobotViewer
             :xml-url="nanoArmResources.xmlUrl"
             :asset-base-url="nanoArmResources.assetBaseUrl"
             :joint-values="nanoArmJointState"
+            :base-pose="nanoRobotBasePose"
+            viewer-label="Nano full arm planning preview"
             @loaded="updateNanoArmJointOrder"
           />
           <div class="mujoco-mirror-details" :title="nanoArmResources.xmlUrl">
@@ -237,7 +239,8 @@ import {
   NANO_ARM_JOINT_LIMITS,
   NANO_ARM_JOINT_NAMES,
 } from '../lib/nanoArmModel'
-import NanoArmViewer from './NanoArmViewer.vue'
+import { createNanoRobotBasePose } from '../lib/nanoRobotMotion'
+import NanoRobotViewer from './NanoRobotViewer.vue'
 
 const fallbackRobotProfile: RobotProfileResponse = {
   source: 'frontend fallback',
@@ -385,6 +388,7 @@ const moveitSnapshot = computed(() => moveitSnapshotData.value)
 const snapshotJoints = computed(() => moveitSnapshot.value.joints)
 const nanoArmResources = buildNanoArmModelResources(BACKEND_BASE_URL)
 const nanoArmJointState = reactive(createNanoArmJointState())
+const nanoRobotBasePose = createNanoRobotBasePose()
 const nanoArmJointOrder = ref([...NANO_ARM_JOINT_NAMES])
 const jointStateSeeded = ref(false)
 const nanoArmJointControls = computed(() => nanoArmJointOrder.value.map((name) => {
