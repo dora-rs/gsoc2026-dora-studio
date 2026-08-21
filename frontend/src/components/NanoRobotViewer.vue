@@ -84,6 +84,10 @@ const props = defineProps<{
   jointValues: NanoArmJointState
   basePose: NanoRobotBasePose
   viewerLabel: string
+  /** M13: hide only the robot MODEL while tool-mounted models (B601)
+   * take over the viewport — the canvas/scene/camera stay alive for the
+   * tools. Hiding the whole viewer would black out the tool rendering. */
+  modelVisible?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -418,6 +422,7 @@ function syncRendererSize() {
   renderer.setSize(clientWidth, clientHeight, false)
   camera.aspect = clientWidth / clientHeight
   camera.updateProjectionMatrix()
+  requestRender()
 }
 
 function frameCameraToModel() {
@@ -527,14 +532,53 @@ async function initializeScene() {
   syncRendererSize()
 }
 
-function animate() {
-  if (disposed || !renderer || !scene || !camera) {
-    return
-  }
+// On-demand rendering: only re-render when something changes (orbit, joint, resize).
+// Saves GPU when the viewport is idle.
+let renderNeeded = true
+let renderScheduled = false
 
-  controls?.update()
-  renderer.render(scene, camera)
-  animationFrame = window.requestAnimationFrame(animate)
+function requestRender() {
+  renderNeeded = true
+  if (renderScheduled || disposed) return
+  renderScheduled = true
+  animationFrame = window.requestAnimationFrame(() => {
+    renderScheduled = false
+    if (disposed || !renderer || !scene || !camera) return
+    if (renderNeeded) {
+      controls?.update()
+      renderer.render(scene, camera)
+      renderNeeded = false
+    }
+    // If still needed (e.g. animation playing), schedule next frame
+    if (renderNeeded) {
+      renderScheduled = true
+      animationFrame = window.requestAnimationFrame(() => {
+        renderScheduled = false
+        if (!disposed && renderNeeded && renderer && scene && camera) {
+          controls?.update()
+          renderer.render(scene, camera)
+          renderNeeded = false
+        }
+      })
+    }
+  })
+}
+
+// Keep rendering while user is orbiting
+function startContinuousRender() {
+  renderNeeded = true
+  function step() {
+    if (!renderNeeded || disposed) return
+    requestRender()
+    if (renderNeeded) {
+      animationFrame = window.requestAnimationFrame(step)
+    }
+  }
+  step()
+}
+
+function stopContinuousRender() {
+  renderNeeded = false
 }
 
 async function loadAndRenderModel() {
@@ -555,6 +599,7 @@ async function loadAndRenderModel() {
 
   modelRoot = new THREE.Group()
   modelRoot.name = 'nano-full-root'
+  modelRoot.visible = props.modelVisible !== false
   scene.add(modelRoot)
 
   for (const rootBody of model.rootBodies) {
@@ -565,6 +610,10 @@ async function loadAndRenderModel() {
   applyBasePose()
   frameCameraToModel()
   applyJointValues()
+  // Hidden mounts (v-show pages) size to 0 and syncRendererSize bails
+  // out without requesting a render — ask for one unconditionally so
+  // the first visible frame always draws the model.
+  requestRender()
 
   viewerState.value = 'ready'
   viewerMessage.value = 'Loaded nano_full.xml from backend models.'
@@ -576,6 +625,7 @@ watch(
   () => props.jointValues,
   () => {
     applyJointValues()
+    requestRender()
   },
   { deep: true },
 )
@@ -584,15 +634,34 @@ watch(
   () => props.basePose,
   () => {
     applyBasePose()
+    requestRender()
   },
   { deep: true },
+)
+
+watch(
+  () => props.modelVisible,
+  () => {
+    if (modelRoot) modelRoot.visible = props.modelVisible !== false
+    requestRender()
+  },
 )
 
 onMounted(async () => {
   try {
     await initializeScene()
-    animate()
+    requestRender()
     await loadAndRenderModel()
+
+    // On-demand rendering: only loop while user interacts with orbit controls
+    const canvas = canvasRef.value
+    if (canvas) {
+      canvas.addEventListener('mousedown', startContinuousRender)
+      canvas.addEventListener('touchstart', startContinuousRender)
+      canvas.addEventListener('wheel', () => { requestRender(); startContinuousRender() })
+      window.addEventListener('mouseup', stopContinuousRender)
+      window.addEventListener('touchend', stopContinuousRender)
+    }
   } catch (error) {
     viewerState.value = 'error'
     viewerMessage.value = 'Nano full viewer failed to load.'
@@ -617,5 +686,40 @@ onBeforeUnmount(() => {
   renderer = null
   scene = null
   camera = null
+})
+
+// M11: tool slot support — let the parent mount tools into our scene.
+defineExpose({
+  getScene: () => scene,
+  getCamera: () => camera,
+  requestRender,
+  // M12 R5: snap the view to a world-space center + radius. Syncs the
+  // OrbitControls target so the framing survives the next user drag; falls
+  // back to a bare position + lookAt when controls are unavailable.
+  focusOn: (center: { x: number; y: number; z: number }, radius: number) => {
+    if (!camera) return
+    const safeRadius = radius > 0 ? radius : 1
+    if (!controls) {
+      camera.position.set(
+        center.x + safeRadius * 1.75,
+        center.y - safeRadius * 2.15,
+        center.z + safeRadius * 1.1,
+      )
+      camera.lookAt(center.x, center.y, center.z)
+      requestRender()
+      return
+    }
+    controls.target.set(center.x, center.y, center.z)
+    camera.position.set(
+      center.x + safeRadius * 1.75,
+      center.y - safeRadius * 2.15,
+      center.z + safeRadius * 1.1,
+    )
+    camera.near = Math.max(0.01, safeRadius / 100)
+    camera.far = Math.max(20, safeRadius * 60)
+    camera.updateProjectionMatrix()
+    controls.update()
+    requestRender()
+  },
 })
 </script>

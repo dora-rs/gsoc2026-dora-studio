@@ -1,329 +1,209 @@
 <template>
   <section class="viz-layout">
-    <aside class="viz-panel viz-left">
-      <div class="viz-panel-header">
+    <!-- Collapsible left sidebar -->
+    <aside :class="['viz-panel', 'viz-left', { collapsed: sidebarCollapsed }]">
+      <div class="viz-panel-header viz-left-header">
         <h2>Data Sources</h2>
-        <div class="viz-panel-actions">
-          <span :class="['pill', backendConnected ? 'success' : 'stopped']">
-            {{ visualizationDataLabel }}
+        <div class="viz-left-header-actions">
+          <span :class="['pill', 'sm', backendConnected ? 'success' : 'stopped']">
+            {{ backendConnected ? 'connected' : 'offline' }}
           </span>
           <button class="viz-refresh-button" type="button" :disabled="isRefreshing" @click="loadVisualizationData">
-            {{ refreshLabel }}
+            {{ isRefreshing ? '...' : '↻' }}
           </button>
         </div>
       </div>
 
-      <div class="viz-search">
-        <input v-model="topicSearch" type="text" placeholder="Filter topics by name, type, status..." />
-      </div>
+      <div v-show="!sidebarCollapsed" class="viz-sidebar-body">
+        <div class="viz-search">
+          <input v-model="topicSearch" type="text" placeholder="Filter topics..." />
+        </div>
 
-      <div class="robot-profile-card">
-        <div class="robot-profile-title">
-          <div>
-            <span>Robot Profile</span>
-            <strong>{{ robotProfile.name }}</strong>
-          </div>
-          <button class="robot-profile-toggle" type="button" @click="robotModulesExpanded = !robotModulesExpanded">
-            {{ robotModulesExpanded ? 'Hide modules' : `Show ${robotProfile.modules.length} modules` }}
-          </button>
-        </div>
-        <p>{{ robotProfile.summary }}</p>
-        <div v-if="selectedRobotModule && !robotModulesExpanded" class="robot-module-summary">
-          <span :class="['robot-module-dot', selectedRobotModule.status]"></span>
-          <strong>{{ selectedRobotModule.name }}</strong>
-          <small>{{ selectedRobotModule.linkedDisplays.length }} displays · {{ selectedRobotModule.sourceTopics.length }} topics</small>
-        </div>
-        <div v-if="robotModulesExpanded" class="robot-module-list">
-          <button
-            v-for="module in visibleRobotModules"
-            :key="module.id"
-            :class="['robot-module-chip', { selected: selectedRobotModule?.id === module.id }]"
-            type="button"
-            @click="selectRobotModule(module.id)"
-          >
-            <span :class="['robot-module-dot', module.status]"></span>
+        <div class="robot-profile-card">
+          <div class="robot-profile-title">
             <div>
-              <strong>{{ module.name }}</strong>
-              <small>{{ module.kind }} · {{ module.status }}</small>
+              <span>Robot Profile</span>
+              <strong>{{ robotProfile.name }}</strong>
             </div>
-          </button>
-        </div>
-      </div>
-
-      <div class="display-list">
-        <div
-          v-for="display in displayData.displays"
-          :key="display.id"
-          :class="['display-item', { enabled: display.enabled, inactive: !display.enabled, linked: moduleLinkedDisplayIds.has(display.id) }]"
-        >
-          <input type="checkbox" :checked="display.enabled" @change="toggleDisplay(display.id)" />
-          <span :class="['display-dot', display.color]"></span>
-          <button class="display-label" type="button" :disabled="!display.sourceTopic" @click="inspectDisplayTopic(display)">
-            <strong>{{ display.name }}</strong>
-            <small>{{ display.summary }}</small>
-          </button>
-          <span :class="['display-status', display.status]">{{ display.status }}</span>
-        </div>
-      </div>
-
-      <div class="viz-section">
-        <div class="viz-section-header">
-          <h3>Topic Preview</h3>
-          <span class="viz-section-source">{{ filteredTopics.length }}/{{ topicData.topics.length }} · {{ topicData.source }}</span>
-        </div>
-        <button
-          v-for="topic in filteredTopics"
-          :key="topic.name"
-          :class="['topic-preview-box', { selected: selectedTopic?.name === topic.name, linked: moduleSourceTopicNames.has(topic.name) }]"
-          type="button"
-          @click="selectTopic(topic.name)"
-        >
-          <div class="topic-title">
-            <code>{{ topic.name }}</code>
-            <span :class="['topic-status', topic.status]">{{ topic.status }}</span>
+            <button class="robot-profile-toggle" type="button" @click="robotModulesExpanded = !robotModulesExpanded">
+              {{ robotModulesExpanded ? 'Hide' : `Modules (${robotProfile.modules.length})` }}
+            </button>
           </div>
-          <span>{{ topic.dataType }} · {{ topic.summary }}</span>
-          <small>{{ topic.source }} · {{ topic.messageRateHz }} Hz · {{ topic.lastSeen }}</small>
-        </button>
-        <p v-if="filteredTopics.length === 0" class="viz-empty-state">
-          No topics match the current filter.
-        </p>
-      </div>
+          <p v-show="!robotModulesExpanded">{{ robotProfile.summary }}</p>
+          <div v-if="robotModulesExpanded" class="robot-module-list">
+            <button
+              v-for="module in visibleRobotModules"
+              :key="module.id"
+              :class="['robot-module-chip', { selected: selectedRobotModule?.id === module.id }]"
+              type="button"
+              @click="selectRobotModule(module.id)"
+            >
+              <span :class="['robot-module-dot', module.status]"></span>
+              <div>
+                <strong>{{ module.name }}</strong>
+                <small>{{ module.kind }} · {{ module.status }}</small>
+              </div>
+            </button>
+          </div>
+        </div>
 
-      <div :class="['viz-data-state', dataStateKind]">
-        <strong>{{ dataStateTitle }}</strong>
-        <span>{{ dataStateMessage }}</span>
-      </div>
+        <div class="display-list">
+          <div
+            v-for="display in displayData.displays"
+            :key="display.id"
+            :class="['display-item', { enabled: display.enabled, inactive: !display.enabled }]"
+          >
+            <input type="checkbox" :checked="display.enabled" @change="toggleDisplay(display.id)" />
+            <span :class="['display-dot', display.color]"></span>
+            <button class="display-label" type="button" :disabled="!display.sourceTopic" @click="inspectDisplayTopic(display)">
+              <strong>{{ display.name }}</strong>
+              <small>{{ display.summary }}</small>
+            </button>
+            <span :class="['display-status', display.status]">{{ display.status }}</span>
+          </div>
+        </div>
 
-      <div class="viz-status-row">
-        <span class="status-dot" :class="backendConnected ? 'on' : 'off'"></span>
-        <span>{{ connectionLabel }}</span>
-        <span class="viz-version">{{ refreshMessage }}</span>
+        <div class="viz-section">
+          <div class="viz-section-header">
+            <h3>Topics</h3>
+            <span class="viz-section-source">{{ filteredTopics.length }}/{{ topicData.topics.length }}</span>
+          </div>
+          <button
+            v-for="topic in filteredTopics"
+            :key="topic.name"
+            :class="['topic-preview-box', { selected: selectedTopic?.name === topic.name }]"
+            type="button"
+            @click="selectTopic(topic.name)"
+          >
+            <div class="topic-title">
+              <code>{{ topic.name }}</code>
+              <span :class="['topic-status', topic.status]">{{ topic.status }}</span>
+            </div>
+            <span>{{ topic.dataType }} · {{ topic.summary }}</span>
+          </button>
+        </div>
+
+        <div :class="['viz-data-state', dataStateKind]">
+          <strong>{{ dataStateTitle }}</strong>
+          <span>{{ dataStateMessage }}</span>
+        </div>
+        <div class="viz-status-row">
+          <span class="status-dot" :class="backendConnected ? 'on' : 'off'"></span>
+          <span>{{ connectionLabel }}</span>
+        </div>
       </div>
     </aside>
 
+    <!-- Full-viewport 3D area -->
     <article class="viz-panel viz-center">
-      <div class="viz-panel-header">
-        <h2>3D Viewport</h2>
-        <div class="viz-panel-actions">
-          <span class="pill success">Nano RobotModel mirror</span>
-          <span class="pill warning">local preview</span>
-        </div>
+      <!-- Thin top bar -->
+      <div class="viz-topbar">
+        <button class="viz-sidebar-toggle" @click="sidebarCollapsed = !sidebarCollapsed" :title="sidebarCollapsed ? 'Show panel' : 'Hide panel'">
+          {{ sidebarCollapsed ? '☰' : '✕' }}
+        </button>
+        <span class="viz-robot-label">{{ robotProfile.name }}</span>
+        <span class="pill success">RobotModel</span>
+        <span class="viz-topbar-spacer"></span>
+        <!-- Live / Replay toggle -->
+        <button
+          :class="['pill', viewportMode === 'live' ? 'success' : 'info']"
+          @click="viewportMode = viewportMode === 'live' ? 'replay' : 'live'"
+        >{{ viewportMode === 'live' ? 'Live' : 'Replay' }}</button>
+        <!-- M15 B4: live feed toggle (opt-in, default off; live mode only) -->
+        <button
+          v-if="viewportMode === 'live'"
+          :class="['pill', liveFeedStatus === 'running' ? 'success' : liveFeedStatus === 'error' ? 'failed' : '']"
+          :title="t.liveFeed.hint"
+          @click="toggleLiveFeed"
+        >{{ t.liveFeed.label }}: {{ liveFeedLabel }}</button>
+        <!-- M11: tool slot panel toggle -->
+        <button
+          :class="['pill', toolsPanelOpen ? 'success' : '']"
+          @click="toolsPanelOpen = !toolsPanelOpen"
+        >Tools</button>
       </div>
+
+      <!-- 3D Viewer fills remaining space -->
       <div class="viz-robot-viewer-card">
+        <!-- M13: a tool-mounted robot model (MoveIt B601) replaces the Nano
+             MODEL while attached+loaded; the viewer canvas stays alive (the
+             tools render into its scene). Hiding the whole viewer would
+             black out the tool rendering too. -->
         <NanoRobotViewer
+          ref="nanoViewer"
           :xml-url="nanoArmResources.xmlUrl"
           :asset-base-url="nanoArmResources.assetBaseUrl"
-          :joint-values="nanoArmJointState"
-          :base-pose="nanoRobotBasePose"
-          viewer-label="Nano full RobotModel visual mirror"
+          :joint-values="effectiveJointState"
+          :base-pose="effectiveBasePose"
+          :model-visible="!hideNanoForMoveit"
+          viewer-label="Nano RobotModel"
         />
-        <div class="viz-robot-viewer-caption">
-          <span>{{ robotModelDisplayLabel }}</span>
-          <strong>Simulated base preview</strong>
-          <p>Visualization/dviz owns the main 3D canvas. These controls only update the local viewer pose; no command is published.</p>
-          <div class="viewport-summary-grid compact">
-            <div class="viewport-summary-item">
-              <strong>{{ enabledDisplays.length }}/{{ snapshotSummary.displayCount }}</strong>
-              <span>enabled displays</span>
-            </div>
-            <div class="viewport-summary-item">
-              <strong>{{ robotProfile.modules.length }}</strong>
-              <span>profile modules</span>
-            </div>
-            <div class="viewport-summary-item">
-              <strong>{{ readyTopicCount }}/{{ snapshotSummary.topicCount }}</strong>
-              <span>ready topics</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="viz-base-control-panel">
-        <div class="viz-base-control-header">
-          <div>
-            <span>Base Control</span>
-            <strong>Local viewer pose only</strong>
-          </div>
-          <button type="button" class="secondary" @click="applyBaseCommand('reset')">Reset</button>
-        </div>
-        <div class="viz-base-control-grid">
-          <button type="button" @click="applyBaseCommand('forward')">Forward</button>
-          <button type="button" class="secondary" @click="applyBaseCommand('turn-left')">Turn Left</button>
-          <button type="button" class="secondary" @click="applyBaseCommand('turn-right')">Turn Right</button>
-          <button type="button" @click="applyBaseCommand('backward')">Backward</button>
-        </div>
-        <div class="viz-base-pose-grid">
-          <div v-for="row in basePoseRows" :key="row.label">
-            <span>{{ row.label }}</span>
-            <strong>{{ row.value }}</strong>
-          </div>
+
+        <!-- M11: tool slot panel (overlay) -->
+        <ToolPanel
+          v-if="toolsPanelOpen"
+          :recommendations="toolRecommendations"
+          @close="toolsPanelOpen = false"
+          @toggle-tool="toggleTool"
+        />
+
+        <!-- M09/M10: attribution bar (replay mode, above the floating replay bar) -->
+        <AttributionBar
+          v-if="viewportMode === 'replay'"
+          :recording-id="replayRecordingId"
+          :current-timestamp="replayCurrentTime"
+          :preview-on-profile-model="attributionPreviewOnProfileModel"
+          @seek-timestamp="(ts: number) => replayEngine?.seek(ts, true)"
+          @apply-action="applyActionVector"
+        />
+
+        <!-- Floating replay bar (overlay at bottom of viewport) -->
+        <div v-if="viewportMode === 'replay'" class="viz-replay-bar">
+          <input
+            v-model="replayPath"
+            class="rp-path-input"
+            placeholder=".drec file path"
+            :disabled="replayActive"
+            @keyup.enter="startReplay"
+          />
+          <button v-if="!replayActive" class="rp-btn" @click="startReplay">Load</button>
+          <button v-else class="rp-btn rp-btn-close" @click="stopReplay">✕</button>
+          <span v-if="replayError" class="rp-error">{{ replayError }}</span>
+
+          <template v-if="replayActive">
+            <span class="rp-time">{{ replayTimeFormatted }} / {{ replayDurationFormatted }}</span>
+            <button class="rp-btn" @click="replayEngine?.play()" title="Play (Space)">▶</button>
+            <button class="rp-btn" @click="replayEngine?.pause()" title="Pause">⏸</button>
+            <button class="rp-btn" @click="replayEngine?.stop()" title="Stop">⏹</button>
+            <input
+              type="range" min="0" :max="replayDuration"
+              :value="replayCurrentTime"
+              class="rp-scrubber"
+              @input="(e) => replayEngine?.seek(Number((e.target as HTMLInputElement).value))"
+            />
+          </template>
         </div>
       </div>
     </article>
-
-    <aside class="viz-panel viz-right">
-      <div class="viz-panel-header">
-        <h2>Inspector</h2>
-        <span v-if="selectedTopic" :class="['topic-status', selectedTopic.status]">{{ selectedTopic.status }}</span>
-      </div>
-
-      <div class="interaction-guide-card">
-        <strong>Interaction Workflow</strong>
-        <ul>
-          <li>Select a topic to inspect metadata.</li>
-          <li>Toggle displays locally to update the viewport summary.</li>
-          <li>Refresh to reload backend dviz metadata and snapshot counts.</li>
-        </ul>
-      </div>
-
-      <div class="snapshot-summary-card">
-        <div>
-          <span>Snapshot Source</span>
-          <strong>{{ snapshotData.source }} · {{ snapshotApiSource }}</strong>
-        </div>
-        <div class="snapshot-summary-grid">
-          <span>{{ snapshotSummary.topicCount }} topics</span>
-          <span>{{ snapshotSummary.displayCount }} displays</span>
-          <span>{{ snapshotSummary.enabledDisplayCount }} enabled</span>
-        </div>
-      </div>
-
-      <div class="robot-inspector-card">
-        <div class="robot-inspector-header">
-          <span>Robot Stack</span>
-          <strong>{{ robotProfileData.source }} · {{ robotProfileApiSource }}</strong>
-        </div>
-        <div class="detail-row compact">
-          <span>Family</span>
-          <strong>{{ robotProfile.family }}</strong>
-        </div>
-        <div class="detail-row compact">
-          <span>Viewport Role</span>
-          <strong>mirror only</strong>
-        </div>
-        <div v-if="selectedRobotModule" class="robot-module-detail">
-          <strong>{{ selectedRobotModule.name }}</strong>
-          <p>{{ selectedRobotModule.summary }}</p>
-          <div class="robot-display-tags">
-            <span v-for="topic in selectedRobotModule.sourceTopics" :key="topic">{{ topic }}</span>
-          </div>
-          <div class="robot-display-tags">
-            <span v-for="display in selectedRobotModule.linkedDisplays" :key="display">{{ display }}</span>
-          </div>
-        </div>
-        <div v-else class="robot-display-tags">
-          <span v-for="display in robotProfile.visualizationDisplays" :key="display">{{ display }}</span>
-        </div>
-        <div class="robot-workflow-list">
-          <div v-for="workflow in robotProfile.workflows" :key="workflow.id" class="robot-workflow-item">
-            <strong>{{ workflow.name }}</strong>
-            <small>{{ workflow.owner }} · {{ workflow.status }}</small>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="selectedTopic" class="topic-detail-card">
-        <div class="topic-detail-title">
-          <span>Selected Topic</span>
-          <code>{{ selectedTopic.name }}</code>
-        </div>
-        <div class="detail-row">
-          <span>Data Type</span>
-          <strong>{{ selectedTopic.dataType }}</strong>
-        </div>
-        <div class="detail-row">
-          <span>Source</span>
-          <strong>{{ selectedTopic.source }}</strong>
-        </div>
-        <div class="detail-row">
-          <span>Rate</span>
-          <strong>{{ selectedTopic.messageRateHz }} Hz</strong>
-        </div>
-        <div class="detail-row">
-          <span>Last Seen</span>
-          <strong>{{ selectedTopic.lastSeen }}</strong>
-        </div>
-        <p>{{ selectedTopic.summary }}</p>
-
-        <div class="linked-display-section">
-          <div class="linked-display-header">
-            <span>Linked Displays</span>
-            <strong>{{ linkedDisplays.length }}</strong>
-          </div>
-          <div v-for="display in linkedDisplays" :key="display.id" class="linked-display-item">
-            <span :class="['display-dot', display.color]"></span>
-            <div>
-              <strong>{{ display.name }}</strong>
-              <small>{{ display.enabled ? 'enabled' : 'disabled' }} · {{ display.status }}</small>
-            </div>
-            <button type="button" @click="toggleDisplay(display.id)">
-              {{ display.enabled ? 'Disable' : 'Enable' }}
-            </button>
-          </div>
-          <small v-if="linkedDisplays.length === 0" class="linked-display-empty">
-            No display currently references this topic.
-          </small>
-        </div>
-      </div>
-      <div v-else class="topic-detail-card empty">
-        <strong>No topic selected</strong>
-        <p>Select a topic from the preview list to inspect its metadata.</p>
-      </div>
-
-      <div class="prop-group">
-        <div class="prop-group-header">
-          <span class="display-dot blue"></span>
-          <strong>Enabled Displays</strong>
-          <span class="prop-badge">{{ enabledDisplays.length }} active</span>
-        </div>
-        <div v-for="display in enabledDisplays" :key="display.id" class="detail-row compact">
-          <span>{{ display.name }}</span>
-          <strong>{{ display.sourceTopic || 'viewport' }}</strong>
-        </div>
-        <span v-if="enabledDisplays.length === 0" class="prop-value muted">No displays enabled</span>
-      </div>
-
-      <div v-for="group in propertyGroups" :key="group.name" class="prop-group">
-        <div class="prop-group-header">
-          <span :class="['display-dot', group.color]"></span>
-          <strong>{{ group.name }}</strong>
-        </div>
-
-        <div v-for="prop in group.props" :key="prop.label" class="prop-row">
-          <label>{{ prop.label }}</label>
-          <div class="prop-control">
-            <input
-              v-if="prop.type === 'slider'"
-              type="range"
-              :value="prop.value"
-              :min="prop.min"
-              :max="prop.max"
-              disabled
-            />
-            <span v-if="prop.type === 'slider'" class="prop-value">{{ prop.value }}</span>
-            <div v-else-if="prop.type === 'color'" class="prop-color">
-              <span class="color-swatch" :style="{ background: prop.value }"></span>
-              <span>{{ prop.value }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </aside>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
-import { BACKEND_BASE_URL, getDvizDisplays, getDvizSnapshot, getDvizStatus, getDvizTopics, getRobotProfile, type ApiResult, type ApiSource, type DvizDisplayResponse, type DvizDisplaysResponse, type DvizSnapshotResponse, type DvizStatusResponse, type DvizTopicResponse, type DvizTopicsResponse, type RobotModuleResponse, type RobotProfileResponse } from '../api'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { BACKEND_BASE_URL, getDataflowGraph, getDataflows, getDvizDisplays, getDvizSnapshot, getDvizStatus, getDvizTopics, getLiveRecent, getRecordingStreams, getRobotProfile, openRecording, type ApiResult, type ApiSource, type DvizDisplayResponse, type DvizDisplaysResponse, type DvizSnapshotResponse, type DvizStatusResponse, type DvizTopicResponse, type DvizTopicsResponse, type RobotModuleResponse, type RobotProfileResponse } from '../api'
+import { useI18n } from '../i18n'
+import { defaultSinceTs, LiveFeedEngine, type LiveFeedStatus } from '../live-feed'
 import { buildNanoArmModelResources, createNanoArmJointState } from '../lib/nanoArmModel'
-import {
-  applyNanoRobotBaseCommand,
-  createNanoRobotBasePose,
-  formatNanoRobotPoseValue,
-  formatNanoRobotYawDegrees,
-  type NanoRobotBaseCommand,
-} from '../lib/nanoRobotMotion'
+import { PlaybackEngine } from '../playback'
+import { ReplayScene, type RobotJointState, type RobotBasePose } from '../replay-scene'
+import { createNanoRobotBasePose } from '../lib/nanoRobotMotion'
+import { findRecommendations, mergeRecommendations } from '../tools/matching'
+import { toolRegistry } from '../tools/registry'
+import { registerBuiltinTools } from '../tools/index'
+import { MoveItTool } from '../tools/moveit/MoveItTool'
 import NanoRobotViewer from './NanoRobotViewer.vue'
+import AttributionBar from './AttributionBar.vue'
+import ToolPanel, { type ToolRecommendation } from './ToolPanel.vue'
 
 const fallbackDvizStatus: DvizStatusResponse = {
   installed: false,
@@ -529,6 +409,248 @@ const nanoArmResources = buildNanoArmModelResources(BACKEND_BASE_URL)
 const nanoArmJointState = reactive(createNanoArmJointState())
 const nanoRobotBasePose = reactive(createNanoRobotBasePose())
 
+// --- UI state ---
+const sidebarCollapsed = ref(false)
+
+// --- M06: Live/Replay toggle ---
+const viewportMode = ref<'live' | 'replay'>('live')
+
+// --- M15 B4: live feed (opt-in polling of /api/live/recent) ---
+const { t } = useI18n()
+const liveFeedEngine = ref<LiveFeedEngine | null>(null)
+const liveFeedStatus = ref<LiveFeedStatus>('stopped')
+const liveFeedLabel = computed(() => {
+  if (liveFeedStatus.value === 'running') return t.value.liveFeed.on
+  if (liveFeedStatus.value === 'error') return t.value.liveFeed.error
+  return t.value.liveFeed.off
+})
+
+function stopLiveFeed() {
+  liveFeedEngine.value?.stop()
+  liveFeedEngine.value = null
+  liveFeedStatus.value = 'stopped'
+}
+
+function toggleLiveFeed() {
+  if (liveFeedEngine.value) {
+    stopLiveFeed()
+    return
+  }
+  const engine = new LiveFeedEngine(
+    async (sinceTs) => (await getLiveRecent(sinceTs)).frames,
+    (batch, tf) => toolRegistry.broadcastBatch(batch, tf),
+    50,
+    defaultSinceTs(Date.now() * 1_000_000),
+  )
+  engine.subscribe(() => { liveFeedStatus.value = engine.status })
+  liveFeedEngine.value = engine
+  engine.start()
+}
+
+// Live data must not leak into replay mode: leaving Live stops the feed.
+watch(viewportMode, (mode) => {
+  if (mode !== 'live') stopLiveFeed()
+})
+const replayPath = ref('/tmp/dora-studio-tests/joint_animation.drec')
+const replayActive = ref(false)
+const replayRecordingId = ref('')
+const replayEngine = ref<PlaybackEngine | null>(null)
+const replayScene = ref<ReplayScene | null>(null)
+const replayCurrentTime = ref(0)
+const replayDuration = ref(1)
+const replayTimeFormatted = ref('0:00.000')
+const replayDurationFormatted = ref('0:00.000')
+const replayError = ref<string | null>(null)
+const replayJoints = reactive<RobotJointState>({ ...createNanoArmJointState() })
+const replayBasePose = reactive<RobotBasePose>({ x: 0, y: 0, yaw: 0 })
+
+const effectiveJointState = computed(() => {
+  if (viewportMode.value === 'replay') {
+    // Map RobotJointState (joint_1) → NanoArmJointState (joint1)
+    return {
+      joint1: replayJoints.joint_1 ?? 0,
+      joint2: replayJoints.joint_2 ?? 0,
+      joint3: replayJoints.joint_3 ?? 0,
+      joint4: replayJoints.joint_4 ?? 0,
+      joint5: replayJoints.joint_5 ?? 0,
+      joint6: replayJoints.joint_6 ?? 0,
+    }
+  }
+  return nanoArmJointState
+})
+const effectiveBasePose = computed(() => {
+  if (viewportMode.value === 'replay') {
+    return { x: replayBasePose.x ?? 0, y: replayBasePose.y ?? 0, yaw: replayBasePose.yaw ?? 0 }
+  }
+  return nanoRobotBasePose
+})
+
+async function startReplay() {
+  if (!replayPath.value) return
+  replayError.value = null
+  try {
+    const info = await openRecording(replayPath.value)
+    const engine = new PlaybackEngine()
+    engine.duration = info.durationNanos
+    replayEngine.value = engine
+    replayRecordingId.value = info.id
+    replayDuration.value = info.durationNanos
+    replayDurationFormatted.value = engine.formatTime(info.durationNanos)
+    replayActive.value = true
+
+    const scene = new ReplayScene(info.id)
+    replayScene.value = scene
+
+    scene.onFrameChange((frame) => {
+      Object.assign(replayJoints, frame.joints)
+      Object.assign(replayBasePose, frame.basePose)
+    })
+
+    engine.onTick((t) => {
+      replayCurrentTime.value = t
+      replayTimeFormatted.value = engine.formatTime(t)
+    })
+
+    scene.attach(engine)
+    engine.seek(0, true)
+
+    updateToolRecommendations(info.id)
+  } catch (e) {
+    console.error('Failed to start replay:', e)
+    replayActive.value = false
+    const hint = replayPath.value.endsWith('.drec')
+      ? ''
+      : ' — LeRobot 数据集请用归因条数据源下拉的 LeRobot 项（.drec 回放只接受 .drec 文件）'
+    replayError.value = e instanceof Error ? `Load failed: ${e.message}${hint}` : 'Load failed'
+  }
+}
+
+/// M16.5 D5: jump from Run & Monitor's recording list into the replay
+/// viewport and open the given recording through the existing flow.
+function openReplayFromRecording(path: string) {
+  replayPath.value = path
+  viewportMode.value = 'replay'
+  startReplay()
+}
+
+defineExpose({ openReplayFromRecording })
+
+// M10: apply a LeRobot action vector to the replay-mode viewport (first 6
+// joints). Stays in replay mode so the attribution panel remains mounted;
+// without an active .drec, replayJoints are the display pose.
+// M13 D4.1: when the MoveIt tool has the matching robot loaded (B601), the
+// preview drives that model instead of the Nano fallback.
+function applyActionVector(vector: number[], profileRobot: string | null) {
+  const moveitTool = toolRegistry.get('moveit-bridge') as MoveItTool | undefined
+  const snapshot = moveitTool?.getSnapshot()
+  const modelMatches =
+    profileRobot !== null &&
+    snapshot?.robotState === 'loaded' &&
+    snapshot.robotId !== null &&
+    profileRobot.toLowerCase() === snapshot.robotId.toLowerCase()
+  if (moveitTool && modelMatches) {
+    moveitTool.previewPose(vector)
+    attributionPreviewOnProfileModel.value = true
+    return
+  }
+  attributionPreviewOnProfileModel.value = false
+  const names: (keyof RobotJointState)[] = ['joint_1', 'joint_2', 'joint_3', 'joint_4', 'joint_5', 'joint_6']
+  names.forEach((name, i) => {
+    if (vector[i] !== undefined) replayJoints[name] = vector[i]
+  })
+}
+
+function stopReplay() {
+  replayEngine.value?.stop()
+  replayScene.value?.dispose()
+  // Close via API using the recording ID from the open call
+  replayEngine.value = null
+  replayScene.value = null
+  replayActive.value = false
+  replayRecordingId.value = ''
+  replayError.value = null
+  Object.assign(replayJoints, createNanoArmJointState())
+  Object.assign(replayBasePose, { x: 0, y: 0, yaw: 0 })
+  // Clear the replay-derived recommendations, then fall back to any
+  // recommendations derivable from the discovered dataflow graphs. The seq
+  // bump invalidates any in-flight dataflow scan before the new one starts.
+  toolRecommendations.value = []
+  dataflowRequestSeq++
+  updateRecommendationsFromDataflows()
+}
+
+// --- M11: tool slot panel ---
+const nanoViewer = ref<InstanceType<typeof NanoRobotViewer> | null>(null)
+const toolsPanelOpen = ref(false)
+// M13 D4.1: true while the attribution preview drives the profile's own
+// robot model (B601) instead of the Nano fallback.
+const attributionPreviewOnProfileModel = ref(false)
+const toolRecommendations = ref<ToolRecommendation[]>([])
+// Monotonic token for async tool-recommendation requests: a newer dataflow
+// scan or replay action invalidates an in-flight dataflow scan.
+let dataflowRequestSeq = 0
+
+function toggleTool(id: string, enable: boolean) {
+  if (enable) {
+    const viewer = nanoViewer.value
+    const scene = viewer?.getScene()
+    const camera = viewer?.getCamera()
+    if (!scene || !camera) return // viewer not ready yet
+    toolRegistry.attachToScene(id, {
+      scene,
+      camera,
+      requestRender: () => viewer?.requestRender(),
+      focusOn: (center, radius) => viewer?.focusOn(center, radius),
+    })
+  } else {
+    toolRegistry.detachFromScene(id)
+  }
+}
+
+async function updateToolRecommendations(recordingId: string) {
+  // A replay-derived update supersedes any in-flight dataflow scan.
+  const token = ++dataflowRequestSeq
+  try {
+    const { streams } = await getRecordingStreams(recordingId)
+    const recommendations = findRecommendations(
+      toolRegistry.list().map((tool) => ({ id: tool.id, subscribePorts: tool.subscribePorts })),
+      streams.map((s) => ({ nodeId: s.nodeId, outputId: s.outputId })),
+    )
+    if (token !== dataflowRequestSeq) return
+    toolRecommendations.value = recommendations
+  } catch {
+    if (token === dataflowRequestSeq) toolRecommendations.value = []
+  }
+}
+
+// M12 D5: recommend tools from discovered dataflow graphs (examples/ scan) so
+// the Tools panel shows matches even without a .drec replay loaded. Fetches
+// every dataflow's graph and merges its (nodeId, outputId) ports into the
+// current recommendations (malformed graphs yield no ports). A token guard
+// drops the result if a replay action started meanwhile.
+async function updateRecommendationsFromDataflows() {
+  const token = ++dataflowRequestSeq
+  const tools = toolRegistry.list().map((tool) => ({ id: tool.id, subscribePorts: tool.subscribePorts }))
+  let recommendations: ToolRecommendation[] = []
+  try {
+    const { data: dataflows } = await getDataflows([])
+    for (const dataflow of dataflows) {
+      const { data: graph } = await getDataflowGraph(dataflow.id, { nodes: [], edges: [], diagnostics: [] })
+      const ports = graph.nodes.flatMap((node) =>
+        node.outputs.map((outputId) => ({ nodeId: node.id, outputId })),
+      )
+      recommendations = mergeRecommendations(
+        recommendations,
+        findRecommendations(tools, ports),
+      )
+    }
+  } catch {
+    // No dataflows available; leave recommendations empty.
+  }
+  if (token !== dataflowRequestSeq) return
+  toolRecommendations.value = recommendations
+}
+
 const backendConnected = computed(() => (
   statusApiSource.value === 'connected'
   || topicApiSource.value === 'connected'
@@ -591,37 +713,8 @@ const selectedRobotModule = computed(() => {
 
   return robotProfile.value.modules.find((module) => module.id === selectedRobotModuleId.value) ?? null
 })
-const moduleSourceTopicNames = computed(() => new Set(selectedRobotModule.value?.sourceTopics ?? []))
-const moduleLinkedDisplayIds = computed(() => new Set(selectedRobotModule.value?.linkedDisplays ?? []))
-const enabledDisplays = computed(() => displayData.value.displays.filter((display) => display.enabled))
-const linkedDisplays = computed(() => {
-  if (!selectedTopic.value) {
-    return []
-  }
-
-  return displayData.value.displays.filter((display) => display.sourceTopic === selectedTopic.value?.name)
-})
 const snapshotSummary = computed(() => snapshotData.value.summary)
-const readyTopicCount = computed(() => snapshotSummary.value.readyTopicCount)
-const basePoseRows = computed(() => [
-  { label: 'x', value: `${formatNanoRobotPoseValue(nanoRobotBasePose.x)} m` },
-  { label: 'y', value: `${formatNanoRobotPoseValue(nanoRobotBasePose.y)} m` },
-  { label: 'yaw', value: formatNanoRobotYawDegrees(nanoRobotBasePose.yaw) },
-])
-const robotModelDisplay = computed(() => (
-  displayData.value.displays.find((display) => display.id === 'robotmodel')
-  ?? displayData.value.displays.find((display) => display.name === 'RobotModel')
-  ?? null
-))
-const robotModelDisplayLabel = computed(() => {
-  if (!robotModelDisplay.value) {
-    return 'RobotModel mirror'
-  }
-
-  return `${robotModelDisplay.value.name} · ${robotModelDisplay.value.status}`
-})
 const refreshLabel = computed(() => (isRefreshing.value ? 'Refreshing...' : 'Refresh'))
-const refreshMessage = computed(() => refreshError.value ?? topicData.value.message)
 
 const dataStateKind = computed(() => {
   if (isRefreshing.value) {
@@ -659,39 +752,8 @@ const dataStateMessage = computed(() => {
   return snapshotData.value.message
 })
 
-const propertyGroups = [
-  {
-    name: 'Grid', color: 'gray',
-    props: [
-      { type: 'slider' as const, label: 'Cell Count', value: '10', min: '2', max: '50' },
-      { type: 'slider' as const, label: 'Cell Size', value: '1.0', min: '0.1', max: '10.0' },
-      { type: 'color' as const, label: 'Color', value: '#7c8aa5' },
-    ],
-  },
-  {
-    name: 'PointCloud', color: 'blue',
-    props: [
-      { type: 'slider' as const, label: 'Point Size', value: '0.02', min: '0.001', max: '0.5' },
-      { type: 'color' as const, label: 'Flat Color', value: '#ffffff' },
-      { type: 'slider' as const, label: 'Decay Time', value: '3.0', min: '0', max: '30' },
-      { type: 'slider' as const, label: 'Queue Size', value: '10', min: '1', max: '50' },
-    ],
-  },
-  {
-    name: 'TF Frames', color: 'green',
-    props: [
-      { type: 'slider' as const, label: 'Axis Scale', value: '0.3', min: '0.1', max: '5.0' },
-      { type: 'slider' as const, label: 'Timeout', value: '5.0', min: '1.0', max: '30.0' },
-    ],
-  },
-]
-
 function selectTopic(name: string) {
   selectedTopicName.value = name
-}
-
-function applyBaseCommand(command: NanoRobotBaseCommand) {
-  Object.assign(nanoRobotBasePose, applyNanoRobotBaseCommand(nanoRobotBasePose, command))
 }
 
 function selectRobotModule(id: string) {
@@ -771,5 +833,162 @@ async function loadVisualizationData() {
   isRefreshing.value = false
 }
 
-onMounted(loadVisualizationData)
+// M13: hide the Nano model while the MoveIt tool is attached — the tool
+// owns the viewport then, regardless of its robot load state (student
+// decision 2026-08-14: no nano in the no-model/loading states either).
+// Registry-driven only: attach/detach events are the single trigger, so
+// no tool-level subscription is needed (and none breaks across
+// detach/reattach cycles, since onDetach clears tool listeners).
+const hideNanoForMoveit = ref(false)
+let registryUnsubscribeNano: (() => void) | null = null
+
+function refreshNanoVisibility() {
+  hideNanoForMoveit.value = toolRegistry.statusOf('moveit-bridge') === 'attached'
+}
+
+onMounted(() => {
+  loadVisualizationData()
+  registerBuiltinTools()
+  updateRecommendationsFromDataflows()
+  registryUnsubscribeNano = toolRegistry.subscribe(refreshNanoVisibility)
+  refreshNanoVisibility()
+})
+
+onBeforeUnmount(() => {
+  registryUnsubscribeNano?.()
+  registryUnsubscribeNano = null
+  stopLiveFeed()
+  // Tools hold scene objects owned by this viewport instance
+  for (const tool of toolRegistry.list()) {
+    toolRegistry.detachFromScene(tool.id)
+  }
+})
 </script>
+
+<style scoped>
+/* ===== Layout ===== */
+.viz-layout {
+  display: flex; height: 100%; overflow: hidden;
+}
+
+/* Left sidebar */
+.viz-left {
+  width: 280px; min-width: 280px; overflow-y: auto; overflow-x: hidden;
+  border-right: 1px solid var(--hairline);
+  background: var(--canvas-base);
+  transition: width 200ms ease, min-width 200ms ease;
+  /* Sidebar is machined-dark in both themes — keep text light on dark */
+  color: var(--text-body);
+}
+.viz-left h2, .viz-left h3 { color: var(--text-heading); }
+.viz-left .robot-profile-title strong,
+.viz-left .robot-module-chip strong,
+.viz-left .display-item strong,
+.viz-left .viz-data-state strong { color: var(--text-heading); }
+.viz-left .robot-module-chip small,
+.viz-left .viz-data-state span,
+.viz-left .viz-status-row,
+.viz-left .viz-section-source { color: var(--text-muted-dark); }
+.viz-left.collapsed {
+  width: 44px; min-width: 44px;
+}
+.viz-left.collapsed h2 { writing-mode: vertical-rl; font-size: 11px; }
+.viz-left.collapsed .viz-left-header-actions { display: none; }
+.viz-left-header {
+  position: sticky; top: 0; z-index: 5;
+  background: var(--canvas-base);
+}
+.viz-left-header-actions {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+}
+.viz-sidebar-body {
+  padding: 0 12px 12px; overflow-y: auto;
+}
+
+/* Center viewport */
+.viz-center {
+  flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0;
+  position: relative;
+}
+
+/* Thin top bar */
+.viz-topbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px;
+  background: var(--card-surface);
+  border-bottom: 1px solid var(--hairline);
+  flex-shrink: 0;
+}
+.viz-sidebar-toggle {
+  background: none; border: none; color: var(--text-body);
+  font-size: 16px; cursor: pointer; padding: 2px 6px; border-radius: 4px;
+}
+.viz-sidebar-toggle:hover { background: var(--card-hover); color: var(--text-heading); }
+.viz-robot-label { font-size: 13px; font-weight: 600; color: var(--text-heading); }
+.viz-topbar-spacer { flex: 1; }
+
+/* Viewport — override global card padding that creates white strip */
+.viz-robot-viewer-card {
+  flex: 1; position: relative; min-height: 0;
+  /* Override global .viz-robot-viewer-card styles. The global rule keeps a
+     300px grid column for the deleted Inspector panel — block layout removes
+     the empty black strip on the right. */
+  display: block !important;
+  padding: 0 !important; margin: 0 !important;
+  border-radius: 0 !important; border: none !important;
+  background: #0f172a !important; /* dark bg to match 3D viewport */
+  box-shadow: none !important;
+}
+.viz-robot-viewer-card :deep(.nano-robot-viewer) {
+  width: 100% !important; height: 100% !important;
+  box-shadow: none !important;
+}
+.viz-robot-viewer-card :deep(canvas) {
+  display: block;
+}
+
+/* ===== Floating replay bar ===== */
+.viz-replay-bar {
+  position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px;
+  background: color-mix(in srgb, var(--card-surface) 96%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid color-mix(in srgb, var(--text-muted-dark) 45%, var(--hairline));
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.45);
+  z-index: 10;
+}
+.rp-path-input {
+  width: 340px; padding: 9px 12px;
+  font-size: 14px; font-family: monospace;
+  background: var(--canvas-base); color: var(--text-body);
+  border: 1px solid var(--hairline); border-radius: 6px;
+}
+.rp-path-input:disabled { opacity: 0.5; }
+.rp-path-input::placeholder { color: var(--text-muted-dark); }
+.rp-time {
+  font-size: 14px; font-family: monospace; color: var(--text-heading); font-weight: 600;
+  white-space: nowrap; min-width: 130px; text-align: center;
+}
+.rp-btn {
+  padding: 9px 14px; border: none; border-radius: 5px;
+  font-size: 13px; cursor: pointer;
+  background: var(--canvas-base); color: var(--text-heading);
+  border: 1px solid var(--hairline);
+}
+.rp-btn:hover { background: var(--card-hover); color: var(--text-heading); }
+.rp-btn-close { color: var(--accent-red); border-color: var(--accent-red); }
+.rp-error { color: var(--accent-red); font-size: 13px; max-width: 300px; }
+.rp-scrubber {
+  width: 140px; height: 8px;
+  -webkit-appearance: none; appearance: none;
+  background: color-mix(in srgb, var(--text-muted-dark) 35%, transparent);
+  border-radius: 4px; outline: none;
+}
+.rp-scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--accent-red); cursor: pointer;
+}
+.pill.info { background: color-mix(in srgb, var(--accent-cyan) 20%, transparent); color: var(--accent-cyan); }
+</style>
