@@ -45,7 +45,6 @@ and type safety in one browser window.
 17. [Validation](#validation)
 18. [Known limitations](#known-limitations)
 19. [Troubleshooting](#troubleshooting)
-20. [Screenshots](#screenshots)
 
 ---
 
@@ -444,21 +443,3 @@ running (the OTLP receiver tests bind ports 4317/4318).
   grep 3001`) and restart.
 
 ---
-
-## Screenshots
-
-Place the screenshots at the bracketed markers above. Checklist:
-
-- [x] Dashboard overview (session pill + version card + quick start)
-- [x] Dashboard version card expanded (candidates + badges)
-- [x] Explorer Source tab (project groups + canvas)
-- [x] Canvas with colored edges (green/red/yellow + tooltip)
-- [x] Port types panel (URN picker, category groups, search)
-- [x] Type Rules panel + edge property "Declare type rule" button
-- [x] Save status bar (successful write-back)
-- [x] Run & Monitor (session bar, Run/Stop, Record UI, recordings list)
-- [x] Logs & Events (three log levels)
-- [x] Visualization 3D viewport (nano robot)
-- [x] Motion Planner (joint editor, read-only status)
-- [x] Metrics panel + OTel flame graph
-- [x] Replay timeline (timeline + synced 3D viewport + attribution bar)
