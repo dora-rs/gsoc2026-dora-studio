@@ -1,4 +1,5 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -106,6 +107,22 @@ pub struct RobotProfileResponse {
     pub source: String,
     pub message: String,
     pub profile: RobotProfile,
+}
+
+// --- available robot models (M13 D6) ---
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AvailableModel {
+    pub id: String,
+    pub urdf_path: String,
+    pub mesh_base_path: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AvailableModelsResponse {
+    pub models: Vec<AvailableModel>,
 }
 
 #[derive(Serialize)]
@@ -264,11 +281,13 @@ pub struct SystemStatus {
     pub error_count: u32,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DataflowSummary {
     pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub project: String,
     pub status: String,
     pub node_count: u32,
     pub edge_count: u32,
@@ -283,6 +302,10 @@ pub struct DataflowDefinition {
     pub source: String,
     pub node_count: u32,
     pub edge_count: u32,
+    #[serde(default)]
+    pub project: String,
+    #[serde(default)]
+    pub type_rules: Vec<TypeRuleDef>,
     pub nodes: Vec<DataflowDefinitionNode>,
 }
 
@@ -291,8 +314,14 @@ pub struct DataflowDefinition {
 pub struct DataflowDefinitionNode {
     pub id: String,
     pub path: Option<String>,
+    #[serde(default)]
     pub inputs: Vec<String>,
+    #[serde(default)]
     pub outputs: Vec<String>,
+    #[serde(default)]
+    pub input_types: BTreeMap<String, String>,
+    #[serde(default)]
+    pub output_types: BTreeMap<String, String>,
 }
 
 #[derive(Serialize)]
@@ -361,4 +390,171 @@ pub struct DataflowGraph {
     pub nodes: Vec<GraphNode>,
     pub edges: Vec<GraphEdge>,
     pub diagnostics: Vec<Diagnostic>,
+}
+
+// --- Runtime node status (M03) ---
+
+/// Per-node runtime status for canvas overlay.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeRuntimeStatus {
+    pub node_id: String,
+    pub status: String,
+    pub uptime_secs: Option<u64>,
+    pub restart_count: u32,
+    pub cpu_usage: Option<f32>,
+    pub memory_mb: Option<f64>,
+    pub pending_messages: Option<u64>,
+}
+
+/// Request body for hot reload.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReloadRequest {
+    pub node_id: String,
+    pub operator_id: Option<String>,
+}
+
+// --- Monitoring control (M11.5) ---
+
+/// Partial toggle: absent fields leave the target unchanged.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MonitoringToggleRequest {
+    #[serde(default)]
+    pub node_metrics: Option<bool>,
+    #[serde(default)]
+    pub otel_spans: Option<bool>,
+}
+
+// --- Recording API types (M04) ---
+
+#[derive(Debug, Deserialize)]
+pub struct OpenRecordingRequest {
+    pub path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordingOpened {
+    pub id: String,
+    pub dataflow_id: String,
+    pub version: u16,
+    pub start_nanos: u64,
+    pub message_count: usize,
+    pub duration_nanos: u64,
+    pub stream_count: usize,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SeekQuery {
+    pub timestamp: u64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EntriesQuery {
+    pub node: Option<String>,
+    pub output: Option<String>,
+    #[serde(default)]
+    pub offset: usize,
+    #[serde(default = "default_limit")]
+    pub limit: usize,
+    #[serde(default)]
+    pub include_data: bool,
+}
+
+fn default_limit() -> usize {
+    100
+}
+
+// --- Project explorer API types (M18 Task 1.4) ---
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectListResponse {
+    pub projects: Vec<crate::project_scan::ProjectSummary>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddProjectRequest {
+    pub path: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManualNodeRequest {
+    pub id: String,
+    pub path: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub inputs: Vec<ManualPortRequest>,
+    #[serde(default)]
+    pub outputs: Vec<ManualPortRequest>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManualPortRequest {
+    pub name: String,
+    #[serde(default)]
+    pub urn: String,
+}
+
+// --- Schema check API types (M18 Task 3.3) ---
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TypeRuleDef {
+    pub from: String,
+    pub to: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SchemaCheckResponse {
+    pub compatible: bool,
+    pub level: String,
+    pub detail: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub urn: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rule: Option<TypeRuleDef>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggestion: Option<String>,
+}
+
+// --- Save API types (M18 Task 3.6) ---
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveIssue {
+    pub node_id: Option<String>,
+    pub port_id: Option<String>,
+    pub message: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveResponse {
+    pub ok: bool,
+    pub path: String,
+    #[serde(default)]
+    pub warnings: Vec<SaveIssue>,
+    #[serde(default)]
+    pub errors: Vec<SaveIssue>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveRequest {
+    pub graph: crate::dataflow_builder::DataflowGraph,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveAsRequest {
+    pub graph: crate::dataflow_builder::DataflowGraph,
+    pub target_path: String,
 }

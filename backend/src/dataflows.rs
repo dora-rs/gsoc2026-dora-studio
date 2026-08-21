@@ -1,6 +1,6 @@
 use crate::models::{
     DataflowDefinition, DataflowDefinitionNode, DataflowGraph, DataflowSummary, Diagnostic,
-    GraphEdge, GraphNode, NodeMetrics,
+    GraphEdge, GraphNode, NodeMetrics, TypeRuleDef,
 };
 use std::{
     collections::{BTreeMap, HashMap},
@@ -15,16 +15,19 @@ pub enum DataflowError {
     NotFound(String),
 }
 
-struct ParsedDataflow {
-    nodes: Vec<ParsedNode>,
-    diagnostics: Vec<Diagnostic>,
+pub(crate) struct ParsedDataflow {
+    pub(crate) nodes: Vec<ParsedNode>,
+    pub(crate) type_rules: Vec<(String, String)>,
+    pub(crate) diagnostics: Vec<Diagnostic>,
 }
 
-struct ParsedNode {
-    id: String,
-    path: Option<String>,
-    inputs: BTreeMap<String, String>,
-    outputs: Vec<String>,
+pub(crate) struct ParsedNode {
+    pub(crate) id: String,
+    pub(crate) path: Option<String>,
+    pub(crate) inputs: BTreeMap<String, String>,
+    pub(crate) outputs: Vec<String>,
+    pub(crate) input_types: BTreeMap<String, String>,
+    pub(crate) output_types: BTreeMap<String, String>,
 }
 
 pub struct DataflowFile {
@@ -37,6 +40,8 @@ pub struct DataflowFile {
 enum NodeSection {
     Inputs,
     Outputs,
+    InputTypes,
+    OutputTypes,
 }
 
 pub fn list_dataflows() -> Result<Vec<DataflowSummary>, DataflowError> {
@@ -56,6 +61,7 @@ pub fn list_dataflows() -> Result<Vec<DataflowSummary>, DataflowError> {
             Ok(DataflowSummary {
                 id: file.id,
                 name: file.name,
+                project: "Studio Examples".to_string(),
                 status,
                 node_count,
                 edge_count,
@@ -73,16 +79,38 @@ pub fn load_definition(id: &str) -> Result<DataflowDefinition, DataflowError> {
     let node_count = parsed.nodes.len() as u32;
     let edge_count = edge_count(&parsed);
     let nodes = parsed.nodes.into_iter().map(definition_node).collect();
+    let type_rules = parsed
+        .type_rules
+        .into_iter()
+        .map(|(from, to)| TypeRuleDef { from, to })
+        .collect();
 
     Ok(DataflowDefinition {
         id: file.id,
         name: file.name,
-        relative_path: file.relative_path,
+        relative_path: file.relative_path.clone(),
         source,
         node_count,
         edge_count,
+        project: project_name(&file.relative_path),
+        type_rules,
         nodes,
     })
+}
+
+/// Minimal project attribution for a definition: builtin examples live under
+/// "examples/" in the workspace, everything else derives from the first path
+/// segment of the relative path (project-dir scans are rooted at the project).
+fn project_name(relative_path: &str) -> String {
+    if relative_path.starts_with("examples/") {
+        return "Studio Examples".to_string();
+    }
+    relative_path
+        .split('/')
+        .next()
+        .filter(|segment| !segment.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| "Studio Examples".to_string())
 }
 
 pub fn graph(id: &str) -> Result<DataflowGraph, DataflowError> {
@@ -140,20 +168,22 @@ pub fn nodes(id: &str) -> Result<Vec<NodeMetrics>, DataflowError> {
         .collect())
 }
 
-fn read_parsed_dataflow(path: &Path) -> Result<ParsedDataflow, DataflowError> {
+pub(crate) fn read_parsed_dataflow(path: &Path) -> Result<ParsedDataflow, DataflowError> {
     let source = fs::read_to_string(path).map_err(|error| {
         DataflowError::Io(format!("Failed to read {}: {error}", path.display()))
     })?;
     parse_dataflow(&source, &path.display().to_string())
 }
 
-fn parse_dataflow(source: &str, label: &str) -> Result<ParsedDataflow, DataflowError> {
+pub(crate) fn parse_dataflow(source: &str, label: &str) -> Result<ParsedDataflow, DataflowError> {
     let mut nodes = Vec::new();
     let mut current_node: Option<ParsedNode> = None;
     let mut current_section: Option<NodeSection> = None;
+    let mut pending_input: Option<String> = None;
     let mut in_nodes = false;
 
     let mut diagnostics = Vec::new();
+    let type_rules = parse_type_rules(source, label, &mut diagnostics);
 
     for raw_line in source.lines() {
         let trimmed = raw_line.trim();
@@ -186,8 +216,11 @@ fn parse_dataflow(source: &str, label: &str) -> Result<ParsedDataflow, DataflowE
                 path: None,
                 inputs: BTreeMap::new(),
                 outputs: Vec::new(),
+                input_types: BTreeMap::new(),
+                output_types: BTreeMap::new(),
             });
             current_section = None;
+            pending_input = None;
             continue;
         }
 
@@ -198,17 +231,29 @@ fn parse_dataflow(source: &str, label: &str) -> Result<ParsedDataflow, DataflowE
         if let Some(id) = trimmed.strip_prefix("id:") {
             node.id = clean_scalar(id);
             current_section = None;
+            pending_input = None;
         } else if let Some(path) = trimmed.strip_prefix("path:") {
             node.path = Some(clean_scalar(path));
             current_section = None;
+            pending_input = None;
         } else if trimmed == "inputs:" {
             current_section = Some(NodeSection::Inputs);
+            pending_input = None;
         } else if trimmed == "outputs:" {
             current_section = Some(NodeSection::Outputs);
+            pending_input = None;
+        } else if trimmed == "input_types:" {
+            current_section = Some(NodeSection::InputTypes);
+            pending_input = None;
+        } else if trimmed == "output_types:" {
+            current_section = Some(NodeSection::OutputTypes);
+            pending_input = None;
         } else if let Some(section) = current_section.as_ref() {
             match section {
-                NodeSection::Inputs => parse_input(trimmed, &mut node.inputs),
+                NodeSection::Inputs => parse_input(trimmed, &mut node.inputs, &mut pending_input),
                 NodeSection::Outputs => parse_output(trimmed, &mut node.outputs),
+                NodeSection::InputTypes => parse_typed_port(trimmed, &mut node.input_types),
+                NodeSection::OutputTypes => parse_typed_port(trimmed, &mut node.output_types),
             }
         }
     }
@@ -221,7 +266,11 @@ fn parse_dataflow(source: &str, label: &str) -> Result<ParsedDataflow, DataflowE
         )));
     }
 
-    Ok(ParsedDataflow { nodes, diagnostics })
+    Ok(ParsedDataflow {
+        nodes,
+        type_rules,
+        diagnostics,
+    })
 }
 
 fn push_node(
@@ -243,11 +292,30 @@ fn push_node(
     Ok(())
 }
 
-fn parse_input(line: &str, inputs: &mut BTreeMap<String, String>) {
+/// Parse one line inside a node's `inputs:` section. dora 1.0 accepts both
+/// the compact form (`name: source/port`) and the nested form written back by
+/// Studio (`name:` followed by an indented `source: source/port` line). For
+/// the nested form a pending port name is remembered on the empty `name:`
+/// line and resolved by the following `source:` sub-key.
+fn parse_input(line: &str, inputs: &mut BTreeMap<String, String>, pending: &mut Option<String>) {
+    if let Some(port) = pending.as_deref() {
+        if let Some(value) = line.strip_prefix("source:") {
+            let value = clean_scalar(value);
+            if !value.is_empty() {
+                inputs.insert(port.to_string(), value);
+            }
+            *pending = None;
+            return;
+        }
+    }
     if let Some((name, source)) = line.split_once(':') {
+        let name = clean_scalar(name);
         let source = clean_scalar(source);
         if !source.is_empty() {
-            inputs.insert(clean_scalar(name), source);
+            inputs.insert(name, source);
+            *pending = None;
+        } else if !name.is_empty() {
+            *pending = Some(name);
         }
     }
 }
@@ -259,6 +327,57 @@ fn parse_output(line: &str, outputs: &mut Vec<String>) {
             outputs.push(output);
         }
     }
+}
+
+fn parse_typed_port(line: &str, types: &mut BTreeMap<String, String>) {
+    if let Some((name, urn)) = line.split_once(':') {
+        let urn = clean_scalar(urn);
+        if !urn.is_empty() {
+            types.insert(clean_scalar(name), urn);
+        }
+    }
+}
+
+fn parse_type_rules(
+    source: &str,
+    label: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Vec<(String, String)> {
+    let mut rules = Vec::new();
+    let mut in_rules = false;
+    let mut current_from: Option<String> = None;
+    for raw_line in source.lines() {
+        let trimmed = raw_line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let indent = raw_line.chars().take_while(|ch| ch.is_whitespace()).count();
+        if !in_rules {
+            if trimmed == "type_rules:" && indent == 0 {
+                in_rules = true;
+            }
+            continue;
+        }
+        if indent == 0 && trimmed != "type_rules:" {
+            break;
+        }
+        if let Some(from) = trimmed.strip_prefix("- from:") {
+            current_from = Some(clean_scalar(from));
+        } else if let Some(to) = trimmed.strip_prefix("to:") {
+            if let Some(from) = current_from.take() {
+                rules.push((from, clean_scalar(to)));
+            }
+        } else if indent > 0 && !trimmed.starts_with('-') {
+            // tolerate unknown keys inside rules
+        }
+    }
+    if in_rules && rules.is_empty() {
+        diagnostics.push(Diagnostic {
+            severity: "warn".to_string(),
+            message: format!("No type_rules were parsed from {label}."),
+        });
+    }
+    rules
 }
 
 fn clean_scalar(value: &str) -> String {
@@ -278,6 +397,8 @@ fn definition_node(node: ParsedNode) -> DataflowDefinitionNode {
             .map(|(name, source)| format!("{name}: {source}"))
             .collect(),
         outputs: node.outputs,
+        input_types: node.input_types,
+        output_types: node.output_types,
     }
 }
 
@@ -315,7 +436,7 @@ fn graph_layout(nodes: &[DataflowDefinitionNode]) -> HashMap<String, (u32, u32)>
     for node in nodes {
         let depth = *depths.get(&node.id).unwrap_or(&0);
         let row = rows_by_depth.entry(depth).or_insert(0);
-        layout.insert(node.id.clone(), (70 + depth * 260, 90 + *row * 140));
+        layout.insert(node.id.clone(), (80 + depth * 400, 80 + *row * 200));
         *row += 1;
     }
 
@@ -385,7 +506,7 @@ fn graph_edges_for_node(
         .collect()
 }
 
-fn edge_count(dataflow: &ParsedDataflow) -> u32 {
+pub(crate) fn edge_count(dataflow: &ParsedDataflow) -> u32 {
     dataflow
         .nodes
         .iter()
@@ -421,10 +542,10 @@ pub fn resolve_dataflow(id: &str) -> Result<DataflowFile, DataflowError> {
 }
 
 fn find_file(id: &str) -> Result<DataflowFile, DataflowError> {
-    discover_files()?
-        .into_iter()
-        .find(|file| file.id == id)
-        .ok_or_else(|| DataflowError::NotFound(format!("Dataflow '{id}' was not found.")))
+    if let Some(file) = discover_files()?.into_iter().find(|file| file.id == id) {
+        return Ok(file);
+    }
+    crate::project_scan::find_dataflow_file(id)
 }
 
 fn discover_files() -> Result<Vec<DataflowFile>, DataflowError> {
@@ -444,7 +565,10 @@ fn discover_files() -> Result<Vec<DataflowFile>, DataflowError> {
         .collect()
 }
 
-fn collect_yaml_files(directory: &Path, paths: &mut Vec<PathBuf>) -> Result<(), DataflowError> {
+pub(crate) fn collect_yaml_files(
+    directory: &Path,
+    paths: &mut Vec<PathBuf>,
+) -> Result<(), DataflowError> {
     for entry in fs::read_dir(directory).map_err(|error| {
         DataflowError::Io(format!("Failed to read {}: {error}", directory.display()))
     })? {
@@ -454,6 +578,11 @@ fn collect_yaml_files(directory: &Path, paths: &mut Vec<PathBuf>) -> Result<(), 
         let path = entry.path();
 
         if path.is_dir() {
+            // dora session artifacts (out/dataflow-dora-session.yml) are
+            // runtime byproducts, not source dataflows — skip them.
+            if path.file_name().and_then(|name| name.to_str()) == Some("out") {
+                continue;
+            }
             collect_yaml_files(&path, paths)?;
         } else if is_yaml_file(&path) {
             paths.push(path);
@@ -470,7 +599,7 @@ fn is_yaml_file(path: &Path) -> bool {
     )
 }
 
-fn dataflow_file(root: &Path, path: PathBuf) -> Result<DataflowFile, DataflowError> {
+pub(crate) fn dataflow_file(root: &Path, path: PathBuf) -> Result<DataflowFile, DataflowError> {
     let relative_path = path
         .strip_prefix(root)
         .map_err(|error| {
@@ -498,6 +627,40 @@ fn dataflow_file(root: &Path, path: PathBuf) -> Result<DataflowFile, DataflowErr
         path,
         relative_path,
     })
+}
+
+pub(crate) fn hashed_dataflow_id(abs_path: &str) -> String {
+    use sha1::{Digest, Sha1};
+    format!("{:x}", Sha1::digest(abs_path.as_bytes()))[..12].to_string()
+}
+
+/// Scan a directory tree for dataflow YAML files, computing DataflowFile
+/// entries with ids relative to `root`. With `hash_ids` the id is a sha1
+/// of the canonical absolute path (used for user project directories).
+pub(crate) fn scan_dataflows_in(
+    root: &Path,
+    hash_ids: bool,
+) -> Result<Vec<DataflowFile>, DataflowError> {
+    let mut paths = Vec::new();
+    collect_yaml_files(root, &mut paths)?;
+    paths.sort();
+    paths
+        .into_iter()
+        .map(|path| dataflow_file_for(root, path, hash_ids))
+        .collect()
+}
+
+fn dataflow_file_for(
+    root: &Path,
+    path: PathBuf,
+    hash_ids: bool,
+) -> Result<DataflowFile, DataflowError> {
+    let canonical = std::fs::canonicalize(&path).unwrap_or_else(|_| path.clone());
+    let mut file = dataflow_file(root, path)?;
+    if hash_ids {
+        file.id = hashed_dataflow_id(&canonical.to_string_lossy());
+    }
+    Ok(file)
 }
 
 fn dataflow_id(relative_path: &str) -> String {
@@ -536,7 +699,18 @@ fn slug(value: &str) -> String {
         .join("-")
 }
 
-fn workspace_root() -> Result<PathBuf, DataflowError> {
+pub(crate) fn workspace_root() -> Result<PathBuf, DataflowError> {
+    // The compiled backend owns the repository layout, so prefer the
+    // manifest root over the launch-time cwd (which may point at a
+    // different checkout and hide dataflows).
+    let manifest_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .map(Path::to_path_buf)
+        .filter(|root| root.join("examples").is_dir() && root.join("backend").is_dir());
+    if let Some(root) = manifest_root {
+        return Ok(root);
+    }
+
     let mut current = std::env::current_dir()
         .map_err(|error| DataflowError::Io(format!("Failed to read current directory: {error}")))?;
 
@@ -582,6 +756,39 @@ nodes:
     }
 
     #[test]
+    fn parses_nested_input_form() {
+        let parsed = parse_dataflow(
+            r#"
+nodes:
+  - id: camera
+    path: camera.py
+    inputs:
+      tick:
+        source: dora/timer/millis/500
+    outputs:
+      - frame
+  - id: sink
+    path: sink.py
+    inputs:
+      frame:
+        source: camera/frame
+"#,
+            "nested.yml",
+        )
+        .expect("nested inputs parse");
+        assert_eq!(parsed.nodes.len(), 2);
+        assert_eq!(
+            parsed.nodes[0].inputs.get("tick").map(String::as_str),
+            Some("dora/timer/millis/500")
+        );
+        assert_eq!(
+            parsed.nodes[1].inputs.get("frame").map(String::as_str),
+            Some("camera/frame")
+        );
+        assert_eq!(edge_count(&parsed), 1);
+    }
+
+    #[test]
     fn creates_stable_id_for_example_dataflow() {
         assert_eq!(
             dataflow_id("examples/robot-perception-test/dataflow.yml"),
@@ -596,6 +803,25 @@ nodes:
         assert!(dataflows
             .iter()
             .any(|dataflow| dataflow.id == "robot-perception-test"));
+    }
+
+    #[test]
+    fn skips_dora_session_artifacts_under_out_directories() {
+        // `dora start` writes out/dataflow-dora-session.yml next to the
+        // source dataflow; those session artifacts must not appear in the
+        // dataflow list (their expanded format fails graph parsing).
+        let dir = std::env::temp_dir().join(format!("dora-studio-df-{}", uuid::Uuid::new_v4()));
+        let nested = dir.join("nested").join("out");
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(dir.join("real.yml"), b"nodes: []").unwrap();
+        fs::write(nested.join("dataflow-dora-session.yml"), b"nodes: []").unwrap();
+
+        let mut paths = Vec::new();
+        collect_yaml_files(&dir, &mut paths).unwrap();
+
+        assert_eq!(paths.len(), 1);
+        assert!(paths[0].ends_with("real.yml"));
+        fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -650,6 +876,83 @@ _unstable_debug:
                 && diagnostic.message.contains("_unstable_debug")));
     }
 
+    /// dora 1.0 adds optional top-level fields (health_check_interval,
+    /// strict_types, type_rules). They must not break node extraction —
+    /// at most a warning diagnostic.
+    #[test]
+    fn parses_dora10_optional_top_level_fields() {
+        let parsed = parse_dataflow(
+            r#"
+health_check_interval: 2.5
+strict_types: true
+type_rules:
+  - from: a/b
+    to: c/d
+nodes:
+  - id: camera
+    path: camera.py
+    outputs:
+      - frame
+"#,
+            "dora10.yml",
+        )
+        .expect("dora 1.0 optional fields parse");
+
+        assert_eq!(parsed.nodes.len(), 1);
+        assert_eq!(parsed.nodes[0].id, "camera");
+    }
+
+    #[test]
+    fn parses_input_output_types_and_type_rules() {
+        let parsed = parse_dataflow(
+            r#"
+type_rules:
+  - from: std/core/v1/UInt8
+    to: std/core/v1/String
+nodes:
+  - id: sensor
+    path: sensor.py
+    outputs:
+      - reading
+    output_types:
+      reading: std/core/v1/Float64
+  - id: processor
+    path: processor.py
+    inputs:
+      reading: sensor/reading
+    input_types:
+      reading: std/core/v1/Float64
+"#,
+            "typed.yml",
+        )
+        .expect("typed dataflow parses");
+        assert_eq!(
+            parsed.type_rules,
+            vec![(
+                "std/core/v1/UInt8".to_string(),
+                "std/core/v1/String".to_string()
+            )]
+        );
+        let sensor = &parsed.nodes[0];
+        assert_eq!(
+            sensor.output_types.get("reading").map(String::as_str),
+            Some("std/core/v1/Float64")
+        );
+        let processor = &parsed.nodes[1];
+        assert_eq!(
+            processor.input_types.get("reading").map(String::as_str),
+            Some("std/core/v1/Float64")
+        );
+    }
+
+    #[test]
+    fn hashed_id_is_stable_for_absolute_path() {
+        use sha1::{Digest, Sha1};
+        let abs = "/home/user/projects/demo/dataflow.yml";
+        let expected = format!("{:x}", Sha1::digest(abs.as_bytes()));
+        assert_eq!(hashed_dataflow_id(abs), expected[..12].to_string());
+    }
+
     #[test]
     fn reports_missing_dataflow() {
         let error = match load_definition("missing-dataflow") {
@@ -658,5 +961,27 @@ _unstable_debug:
         };
 
         assert!(matches!(error, DataflowError::NotFound(_)));
+    }
+
+    #[test]
+    fn scan_dataflows_in_hashes_ids_of_canonical_paths() {
+        let dir = std::env::temp_dir().join(format!("dora-studio-scan-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("dataflow.yml"),
+            "nodes:\n  - id: n\n    outputs:\n      - out\n",
+        )
+        .unwrap();
+        let files = scan_dataflows_in(&dir, true).unwrap();
+        assert_eq!(files.len(), 1);
+        let canonical = fs::canonicalize(dir.join("dataflow.yml")).unwrap();
+        assert_eq!(
+            files[0].id,
+            hashed_dataflow_id(&canonical.to_string_lossy())
+        );
+        // non-hash mode keeps slug id derived from relative path
+        let files2 = scan_dataflows_in(&dir, false).unwrap();
+        assert_eq!(files2[0].id, "dataflow");
+        fs::remove_dir_all(&dir).ok();
     }
 }
