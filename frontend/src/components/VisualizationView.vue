@@ -498,7 +498,7 @@ async function startReplay() {
     replayDurationFormatted.value = engine.formatTime(info.durationNanos)
     replayActive.value = true
 
-    const scene = new ReplayScene(info.id)
+    const scene = new ReplayScene(info.id, info.startNanos)
     replayScene.value = scene
 
     scene.onFrameChange((frame) => {

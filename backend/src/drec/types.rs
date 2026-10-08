@@ -15,8 +15,12 @@ pub const MAGIC: &[u8; 8] = b"DORAREC\x00";
 /// Magic bytes marking the start of the footer.
 pub const FOOTER_MAGIC: &[u8; 8] = b"DORAEND\x00";
 
-/// Current recording format version.
-pub const FORMAT_VERSION: u16 = 1;
+/// Newest `.drec` container version accepted by Studio.
+///
+/// dora 1.0.1 writes version 2. Its container framing is unchanged from
+/// version 1; only `event_bytes` changed from bincode to postcard. Studio
+/// indexes those bytes as opaque payloads, so it can safely open both.
+pub const FORMAT_VERSION: u16 = 2;
 
 /// Maximum size of a single record or YAML descriptor (OOM guard).
 pub const MAX_RECORD_BYTES: u32 = 64 * 1024 * 1024; // 64 MiB

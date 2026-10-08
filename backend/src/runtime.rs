@@ -124,6 +124,13 @@ impl RuntimeManager {
         self.state.lock().await.clone()
     }
 
+    /// The exact coordinator name of the Studio-started dataflow. A retry may
+    /// add a suffix, so callers that target a running dataflow must not
+    /// reconstruct this name from its path or id.
+    pub async fn active_dataflow_name(&self) -> Option<String> {
+        self.dataflow_name.lock().await.clone()
+    }
+
     pub async fn logs(&self) -> Vec<LogEntry> {
         self.logs
             .lock()

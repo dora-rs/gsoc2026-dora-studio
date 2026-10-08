@@ -13,6 +13,7 @@ import {
 const engine = new PlaybackEngine()
 const recordingPath = ref('')
 const recordingId = ref('')
+const recordingStartNanos = ref(0)
 const streams = ref<StreamInfoResponse[]>([])
 const currentEntries = ref<StreamEntry[]>([])
 const openedInfo = ref<{ messageCount: number; durationNanos: number; streamCount: number } | null>(null)
@@ -26,6 +27,14 @@ const currentTime = ref(0)
 const speed = ref<PlaybackSpeed>(1)
 const currentTimeFormatted = computed(() => engine.formatTime(currentTime.value))
 const durationFormatted = computed(() => engine.formatTime(engine.durationNanos))
+const activeStreamKeys = computed(() => new Set(
+  currentEntries.value.map(entry => `${entry.nodeId}/${entry.outputId}`),
+))
+const activeStreamCount = computed(() => activeStreamKeys.value.size)
+
+function isStreamActive(stream: StreamInfoResponse): boolean {
+  return activeStreamKeys.value.has(`${stream.nodeId}/${stream.outputId}`)
+}
 
 // --- Zoom state ---
 const zoomLevel = ref(1) // 1 = fit all; higher = zoomed in
@@ -82,6 +91,7 @@ async function doOpen() {
   try {
     const result = await openRecording(recordingPath.value)
     recordingId.value = result.id
+    recordingStartNanos.value = result.startNanos
     engine.duration = result.durationNanos
     openedInfo.value = { messageCount: result.messageCount, durationNanos: result.durationNanos, streamCount: result.streamCount }
 
@@ -98,6 +108,7 @@ async function doClose() {
   if (!recordingId.value) return
   try { await closeRecording(recordingId.value) } catch { /* ignore */ }
   recordingId.value = ''
+  recordingStartNanos.value = 0
   openedInfo.value = null
   streams.value = []
   currentEntries.value = []
@@ -106,13 +117,15 @@ async function doClose() {
 
 async function fetchEntriesAt(timestamp: number) {
   if (!recordingId.value) return
-  const result = await getRecordingEntries(recordingId.value, { offset: 0, limit: 200 })
-  // Filter entries near the current timestamp (within ~1 frame at 30fps)
+  // The player uses a duration-relative cursor; `.drec` entries use absolute
+  // timestamps. Query the backend index at the matching absolute instant.
   const frameWindow = 33_333_333
-  const nearby = result.entries.filter(e =>
-    Math.abs(e.timestampNanos - timestamp) < frameWindow
-  )
-  if (nearby.length > 0) currentEntries.value = nearby
+  const result = await getRecordingEntries(recordingId.value, {
+    timestamp: recordingStartNanos.value + timestamp,
+    windowNanos: frameWindow,
+    limit: 200,
+  })
+  currentEntries.value = result.entries
 }
 
 // --- Timeline click / scrub ---
@@ -325,24 +338,46 @@ onUnmounted(() => {
 
     <!-- Stream grid (D4) -->
     <div v-if="streams.length" class="stream-grid">
-      <h3 class="sg-title">Streams ({{ currentEntries.length }} active)</h3>
+      <div :class="['stream-activity-summary', { 'has-active': activeStreamCount > 0 }]">
+        <div class="sas-copy">
+          <div class="sas-heading">
+            <span :class="['sas-dot', { active: activeStreamCount > 0 }]" aria-hidden="true" />
+            <h3>当前时刻的数据流</h3>
+          </div>
+          <p>
+            回放时刻 {{ currentTimeFormatted }}
+            <span v-if="activeStreamCount > 0">— 下方高亮的是此刻有消息的 stream</span>
+            <span v-else>— 此时间窗内没有消息</span>
+          </p>
+        </div>
+        <div class="sas-badge">
+          <strong>{{ activeStreamCount }}</strong>
+          <span>条活跃输出流</span>
+        </div>
+      </div>
       <div class="sg-grid">
         <div
           v-for="s in streams"
           :key="s.nodeId + '/' + s.outputId"
-          :class="['sg-card', { active: currentEntries.some(e => e.nodeId === s.nodeId && e.outputId === s.outputId) }]"
+          :class="['sg-card', { active: isStreamActive(s), inactive: !isStreamActive(s) }]"
         >
           <div class="sg-card-header">
             <span class="sg-node">{{ s.nodeId }}</span>
             <span class="sg-port">/ {{ s.outputId }}</span>
             <span class="sg-count">{{ s.entryCount }}</span>
           </div>
+          <div :class="['sg-presence', { active: isStreamActive(s) }]">
+            <span class="sg-presence-dot" aria-hidden="true" />
+            {{ isStreamActive(s) ? '当前时刻有消息' : '当前时刻无消息' }}
+          </div>
           <!-- Mini sparkline area -->
           <div class="sg-sparkline">
             <div class="sg-sparkline-bar" :style="{ width: (s.entryCount / (openedInfo?.messageCount ?? 1)) * 100 + '%' }" />
           </div>
           <div class="sg-range">
-            {{ engine.formatTime(s.timeRange[0]) }} → {{ engine.formatTime(s.timeRange[1]) }}
+            {{ engine.formatTime(Math.max(0, s.timeRange[0] - recordingStartNanos)) }}
+            →
+            {{ engine.formatTime(Math.max(0, s.timeRange[1] - recordingStartNanos)) }}
           </div>
         </div>
       </div>
@@ -470,24 +505,63 @@ onUnmounted(() => {
 
 /* Stream grid */
 .stream-grid {
-  display: flex; flex-direction: column; gap: 8px;
+  display: flex; flex-direction: column; gap: 12px;
 }
-.sg-title {
-  font-size: 14px; font-weight: 600; color: var(--text-heading); margin: 0;
+.stream-activity-summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  padding: 14px 16px; border: 1px solid var(--hairline); border-radius: 10px;
+  background: var(--card-surface); transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+.stream-activity-summary.has-active {
+  border-color: var(--accent-cyan);
+  background: linear-gradient(100deg, color-mix(in srgb, var(--accent-cyan) 18%, var(--card-surface)), var(--card-surface) 58%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 22%, transparent), 0 8px 22px color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+}
+.sas-copy { min-width: 0; }
+.sas-heading { display: flex; align-items: center; gap: 9px; }
+.sas-heading h3 { margin: 0; font-size: 16px; color: var(--text-heading); }
+.sas-copy p { margin: 5px 0 0; font-size: 12px; color: var(--text-body); }
+.sas-dot, .sg-presence-dot {
+  width: 9px; height: 9px; border-radius: 50%; background: var(--text-muted-dark); flex: 0 0 auto;
+}
+.sas-dot.active, .sg-presence.active .sg-presence-dot {
+  background: var(--accent-cyan);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-cyan) 22%, transparent);
+  animation: stream-pulse 1.6s ease-in-out infinite;
+}
+.sas-badge {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-width: 94px; padding: 7px 12px; border-radius: 8px;
+  background: var(--canvas-base); border: 1px solid var(--hairline); color: var(--text-muted-dark);
+}
+.has-active .sas-badge { color: var(--accent-cyan); border-color: var(--accent-cyan); }
+.sas-badge strong { font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
+.sas-badge span { margin-top: 3px; font-size: 10px; font-weight: 700; text-align: center; }
+@keyframes stream-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-cyan) 18%, transparent); }
+  50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent-cyan) 4%, transparent); }
 }
 .sg-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;
 }
 .sg-card {
   background: var(--card-surface); border: 1px solid var(--hairline);
   border-radius: 6px; padding: 10px 12px;
-  transition: border-color 150ms ease;
+  transition: opacity 180ms ease, filter 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
-.sg-card.active { border-color: var(--accent-cyan); }
+.sg-card.inactive { opacity: 0.38; filter: grayscale(0.85); }
+.sg-card.active {
+  opacity: 1; filter: none; border: 2px solid var(--accent-cyan); padding: 9px 11px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent-cyan) 16%, var(--card-surface)), var(--card-surface) 72%);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent-cyan) 16%, transparent);
+  transform: translateY(-2px);
+}
 .sg-card-header { display: flex; align-items: baseline; gap: 4px; font-size: 13px; }
 .sg-node { font-weight: 600; color: var(--text-heading); }
 .sg-port { color: var(--text-muted-dark); font-size: 12px; }
 .sg-count { margin-left: auto; font-size: 11px; color: var(--text-muted-dark); }
+.sg-presence { display: flex; align-items: center; gap: 6px; margin-top: 7px; color: var(--text-muted-dark); font-size: 10px; font-weight: 700; }
+.sg-presence.active { color: var(--accent-cyan); }
 .sg-sparkline {
   height: 4px; background: var(--canvas-base); border-radius: 2px;
   margin: 6px 0;

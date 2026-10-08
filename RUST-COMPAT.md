@@ -21,7 +21,7 @@ Date:   use `git -C /home/dora/dora log -1 --format=%ci` to retrieve.
 
 | Our file | dora source | Types copied |
 |----------|-------------|--------------|
-| `backend/src/drec/types.rs` | `libraries/recording/src/lib.rs` | RecordingHeader, RecordEntry, RecordingFooter, MAGIC, FOOTER_MAGIC, FORMAT_VERSION |
+| `backend/src/drec/types.rs` | `libraries/recording/src/lib.rs` | RecordingHeader, RecordEntry, RecordingFooter, MAGIC, FOOTER_MAGIC, FORMAT_VERSION (v1 + dora 1.0.1 v2 container framing) |
 | `backend/src/protocol/types.rs` | `libraries/message/src/ws_protocol.rs` | WsMessage, WsRequest, WsResponse, WsEvent |
 | `backend/src/protocol/types.rs` | `libraries/message/src/coordinator_to_cli.rs` | NodeInfo, NodeMetricsInfo, NodeStatus, DataflowList, TraceSummary, TraceSpan |
 | `backend/src/protocol/types.rs` | `libraries/message/src/common.rs` | LogMessage, LogLevel |

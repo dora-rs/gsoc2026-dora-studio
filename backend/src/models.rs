@@ -455,6 +455,11 @@ pub struct SeekQuery {
 pub struct EntriesQuery {
     pub node: Option<String>,
     pub output: Option<String>,
+    /// Absolute recording timestamp. When present, entries are selected from
+    /// the time window around this value instead of by page offset.
+    pub timestamp: Option<u64>,
+    /// Half-width of the timestamp query window, in nanoseconds.
+    pub window_nanos: Option<u64>,
     #[serde(default)]
     pub offset: usize,
     #[serde(default = "default_limit")]

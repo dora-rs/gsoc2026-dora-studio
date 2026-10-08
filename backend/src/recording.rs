@@ -52,13 +52,23 @@ pub struct RecordingEntry {
     pub frame_count: Option<u64>,
 }
 
-fn build_record_command(binary: &str, dataflow_path: &Path, output_path: &Path) -> Command {
+fn build_record_command(
+    binary: &str,
+    dataflow_name: &str,
+    dataflow_path: &Path,
+    output_path: &Path,
+) -> Command {
     let mut command = Command::new(binary);
     command
         .arg("record")
-        .arg(dataflow_path)
+        // dora 1.0 records an already-running dataflow through the
+        // coordinator. Without proxy mode it starts a second run and exits.
+        .arg("--proxy")
+        .arg("--name")
+        .arg(dataflow_name)
         .arg("-o")
         .arg(output_path)
+        .arg(dataflow_path)
         // A terminal stdin flips dora record into interactive mode;
         // recordings run non-interactively.
         .stdin(std::process::Stdio::null());
@@ -135,7 +145,11 @@ impl RecordingController {
         }
     }
 
-    pub async fn capture(self: &Arc<Self>, dataflow_path: String) -> RecordingStatus {
+    pub async fn capture(
+        self: &Arc<Self>,
+        dataflow_path: String,
+        dataflow_name: String,
+    ) -> RecordingStatus {
         if self.active.lock().await.is_some() {
             return self.status().await;
         }
@@ -156,6 +170,7 @@ impl RecordingController {
         let output_path = recording_output_path(&self.output_dir, started_at_millis);
         let mut command = build_record_command(
             &crate::dora_env::resolve_dora_bin(),
+            &dataflow_name,
             Path::new(&dataflow_path),
             &output_path,
         );
@@ -314,9 +329,10 @@ mod tests {
     }
 
     #[test]
-    fn build_record_command_uses_record_with_output() {
+    fn build_record_command_uses_proxy_with_active_dataflow_name() {
         let command = build_record_command(
             "/opt/dora",
+            "studio-demo",
             Path::new("/tmp/demo.yml"),
             Path::new("/tmp/out/recording.drec"),
         );
@@ -327,9 +343,12 @@ mod tests {
             args,
             vec![
                 std::ffi::OsStr::new("record"),
-                std::ffi::OsStr::new("/tmp/demo.yml"),
+                std::ffi::OsStr::new("--proxy"),
+                std::ffi::OsStr::new("--name"),
+                std::ffi::OsStr::new("studio-demo"),
                 std::ffi::OsStr::new("-o"),
                 std::ffi::OsStr::new("/tmp/out/recording.drec"),
+                std::ffi::OsStr::new("/tmp/demo.yml"),
             ]
         );
     }
@@ -412,7 +431,7 @@ mod tests {
                 // progress by copying the fixture and holding the session.
                 // `exec` replaces the shell so the kill lands on sleep.
                 _ => format!(
-                    "cp '{fixture}' \"$4\"; exec sleep 300",
+                    "cp '{fixture}' \"$6\"; exec sleep 300",
                     fixture = fixture_drec().display()
                 ),
             };
@@ -456,7 +475,7 @@ mod tests {
         let controller = RecordingController::new();
 
         let started = controller
-            .capture("examples/live-demo/dataflow.yml".to_string())
+            .capture("examples/live-demo/dataflow.yml".to_string(), "studio-live-demo".to_string())
             .await;
         assert_eq!(started.status, "recording");
         let output = started.output_path.expect("output path present");
@@ -466,7 +485,7 @@ mod tests {
         assert!(fake
             .invocations()
             .iter()
-            .any(|line| line.starts_with("record examples/live-demo/dataflow.yml -o ")));
+            .any(|line| line.starts_with("record --proxy --name studio-live-demo -o ")));
         // Regression: a terminal stdin flips dora record into
         // interactive mode; Studio must pass a non-terminal stdin.
         assert!(fake.invocations().iter().any(|line| line == "stdin-null"));
@@ -484,7 +503,7 @@ mod tests {
         let _env = DoraBinEnvGuard::set(fake.path());
         let controller = RecordingController::new();
 
-        let started = controller.capture("examples/demo.yml".to_string()).await;
+        let started = controller.capture("examples/demo.yml".to_string(), "studio-demo".to_string()).await;
         assert_eq!(started.status, "unavailable");
         assert!(started.message.contains("dora 0.5.0"));
         assert!(!fake
@@ -504,7 +523,7 @@ mod tests {
         let _env = DoraBinEnvGuard::set(fake.path());
         let controller = RecordingController::new();
 
-        let started = controller.capture("examples/demo.yml".to_string()).await;
+        let started = controller.capture("examples/demo.yml".to_string(), "studio-demo".to_string()).await;
         assert_eq!(started.status, "failed");
         assert!(started.message.contains("dora record failed"));
     }
@@ -517,7 +536,7 @@ mod tests {
         let controller = RecordingController::new();
 
         let started = controller
-            .capture("examples/live-demo/dataflow.yml".to_string())
+            .capture("examples/live-demo/dataflow.yml".to_string(), "studio-live-demo".to_string())
             .await;
         let output = started.output_path.expect("output path present");
         let _cleanup = OutputCleanup(vec![PathBuf::from(&output)]);
