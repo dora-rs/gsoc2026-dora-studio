@@ -199,6 +199,7 @@ import NodePalette from './NodePalette.vue'
 import PortTypePanel from './PortTypePanel.vue'
 import TypeRulesPanel from './TypeRulesPanel.vue'
 import { definitionToGraph, graphToPayload } from '../dataflow-convert'
+import { schemaSignatureFor, updatePortType } from '../dataflow-schema'
 import { edgeLevel, edgeColor, buildRulePatch } from '../edge-status'
 import { issuesToEdgeStyles, parseSaveError } from '../save-issues'
 import { useI18n } from '../i18n'
@@ -330,7 +331,6 @@ async function loadDataflow(id: string) {
     // Sidebar selection always lands on the Source canvas editor so the
     // Save / Save As toolbar is visible regardless of the active tab.
     viewMode.value = 'source'
-    await checkAllEdges()
   }
 }
 
@@ -446,14 +446,13 @@ async function checkAllEdges() {
   schemaChecking.value = false
 }
 
-// Re-check schema when edges change — the signature watch also fires when an
-// edge is rewired between different endpoints (not just when the count
-// changes). Type-rule changes re-check as well.
-watch(
-  () => buildGraph.value.edges.map(e => `${e.sourceNode}/${e.sourcePort}->${e.targetNode}/${e.targetPort}`).join('|'),
-  () => { checkAllEdges() }
-)
-watch(() => typeRules.value, () => { checkAllEdges() })
+// One reactive signature covers every input to schema compatibility: wiring,
+// endpoint URNs, and declared type rules. Watching edges alone meant changing
+// an existing port's type could leave its old gray result on screen until the
+// user rewired the edge.
+const schemaSignature = computed(() => schemaSignatureFor(buildGraph.value, typeRules.value))
+
+watch(schemaSignature, () => { void checkAllEdges() }, { immediate: true })
 
 // --- Source editor: save write-back ---
 
@@ -474,17 +473,25 @@ async function saveCurrent() {
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
-    saveStatus.value = t.value.explorer.saveFailed.replace('{message}', message)
-    // The 422 body arrives as a JSON string inside the ApiError error field
-    // ("API request failed: 422 — {"ok":false,...}"); parse it so per-edge
-    // save errors surface on the canvas.
-    const parsed = parseSaveError(message)
-    if (parsed && !parsed.ok) applySaveIssues(parsed.errors, true)
+    presentSaveFailure(message)
   }
 }
 
 function applySaveIssues(issues: SaveIssue[], blocking: boolean) {
   edgeStyles.value = { ...edgeStyles.value, ...issuesToEdgeStyles(issues, buildGraph.value, blocking) }
+}
+
+// A validation rejection is an expected, actionable save outcome. The API
+// transports it as an HTTP 422 containing a SaveResponse envelope, so unwrap
+// that envelope for the user instead of rendering raw JSON in the toolbar.
+function presentSaveFailure(message: string) {
+  const parsed = parseSaveError(message)
+  if (parsed && !parsed.ok) {
+    saveStatus.value = t.value.explorer.saveBlocked.replace('{count}', String(parsed.errors.length))
+    applySaveIssues(parsed.errors, true)
+    return
+  }
+  saveStatus.value = t.value.explorer.saveFailed.replace('{message}', message)
 }
 
 async function saveAsCurrent() {
@@ -497,7 +504,7 @@ async function saveAsCurrent() {
       ? t.value.explorer.savedAs.replace('{path}', result.path)
       : t.value.explorer.saveBlocked.replace('{count}', String(result.errors.length))
   } catch (e) {
-    saveStatus.value = t.value.explorer.saveFailed.replace('{message}', e instanceof Error ? e.message : String(e))
+    presentSaveFailure(e instanceof Error ? e.message : String(e))
   }
 }
 
@@ -505,15 +512,8 @@ async function saveAsCurrent() {
 
 function onPortUpdate(portName: string, isInput: boolean, urn: string) {
   if (!selectedBuildNode.value) return
-  const node = buildGraph.value.nodes.find(n => n.id === selectedBuildNode.value)
-  if (!node) return
-  const ports = isInput ? node.inputs : node.outputs
-  if (ports[portName]) {
-    if (urn) ports[portName] = { type: urn }
-    else delete ports[portName].type
-  }
+  buildGraph.value = updatePortType(buildGraph.value, selectedBuildNode.value, portName, isInput, urn)
   buildChecked.value = false
-  checkAllEdges()
 }
 
 function onTypeRulesUpdate(rules: TypeRule[]) {

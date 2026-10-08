@@ -43,6 +43,7 @@ const emptyBasePose: RobotBasePose = { x: 0, y: 0, yaw: 0 }
 
 export class ReplayScene {
   private _recordingId: string
+  private _startNanos: number
   private _tfTree = new SimpleTfTree()
   private _currentFrame: ReplayFrame = {
     timestampNanos: 0,
@@ -54,8 +55,9 @@ export class ReplayScene {
   // Callbacks for the viewport to observe
   private _onFrameChange: ((frame: ReplayFrame) => void) | null = null
 
-  constructor(recordingId: string) {
+  constructor(recordingId: string, startNanos: number) {
     this._recordingId = recordingId
+    this._startNanos = startNanos
   }
 
   get currentFrame(): Readonly<ReplayFrame> { return this._currentFrame }
@@ -79,8 +81,9 @@ export class ReplayScene {
     })
   }
 
-  async updateFromTimestamp(timestampNs: number): Promise<void> {
+  async updateFromTimestamp(relativeTimestampNs: number): Promise<void> {
     const frameWindow = 50_000_000 // ±50ms window
+    const timestampNs = this._startNanos + relativeTimestampNs
     const entries = await this.fetchEntriesAt(timestampNs, frameWindow)
 
     // Parse entries into data layers
@@ -132,10 +135,12 @@ export class ReplayScene {
     timestampNs: number,
     windowNs: number,
   ): Promise<SeekEntryResponse[]> {
-    const result = await getRecordingEntriesWithData(this._recordingId, { limit: 200 })
-    return result.entries.filter(
-      (e) => Math.abs(e.timestampNanos - timestampNs) < windowNs,
-    )
+    const result = await getRecordingEntriesWithData(this._recordingId, {
+      timestamp: timestampNs,
+      windowNanos: windowNs,
+      limit: 200,
+    })
+    return result.entries
   }
 
   dispose() {

@@ -1188,7 +1188,17 @@ async fn recording_capture(
     State(state): State<Arc<AppState>>,
     Json(req): Json<RecordingCaptureRequest>,
 ) -> Json<recording::RecordingStatus> {
-    Json(state.recording.capture(req.dataflow_path).await)
+    let Some(dataflow_name) = state.runtime.active_dataflow_name().await else {
+        return Json(recording::RecordingStatus {
+            status: "unavailable".to_string(),
+            output_path: None,
+            dataflow_path: Some(req.dataflow_path),
+            started_at_millis: None,
+            frame_count: None,
+            message: "Start the selected dataflow from Studio before recording.".to_string(),
+        });
+    };
+    Json(state.recording.capture(req.dataflow_path, dataflow_name).await)
 }
 
 async fn recording_stop(State(state): State<Arc<AppState>>) -> Json<recording::RecordingStatus> {
@@ -1293,7 +1303,14 @@ async fn recording_entries(
         message: "recording not found".to_string(),
     })?;
 
-    let entries = if let (Some(node), Some(output)) = (&q.node, &q.output) {
+    let entries = if let Some(timestamp) = q.timestamp {
+        let window = q.window_nanos.unwrap_or(50_000_000);
+        let start = timestamp.saturating_sub(window);
+        let end = timestamp.saturating_add(window);
+        let mut matching = handle.entries_in_range(start, end);
+        matching.truncate(q.limit);
+        matching
+    } else if let (Some(node), Some(output)) = (&q.node, &q.output) {
         handle.stream_entries(node, output, q.offset, q.limit)
     } else {
         let all = handle.index.all_entries();

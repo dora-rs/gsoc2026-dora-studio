@@ -283,6 +283,7 @@ const recordingBtnState = computed(() =>
     recording.value.status,
     session.value.lifecycleSupported &&
       session.value.running &&
+      runtime.value.status === 'running' &&
       (useCustomPath.value ? customPath.value.trim().length > 0 : !!selectedDataflow.value),
   ),
 )

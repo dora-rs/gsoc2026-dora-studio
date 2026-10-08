@@ -643,15 +643,28 @@ export type RecordingEntriesResponse = {
   total: number
 }
 
+export type RecordingEntriesParams = {
+  node?: string
+  output?: string
+  offset?: number
+  limit?: number
+  /** Absolute `.drec` timestamp in nanoseconds. */
+  timestamp?: number
+  /** Half-width of the timestamp query window in nanoseconds. */
+  windowNanos?: number
+}
+
 export function getRecordingEntriesWithData(
   id: string,
-  params: { node?: string; output?: string; offset?: number; limit?: number } = {}
+  params: RecordingEntriesParams = {}
 ) {
   const qs = new URLSearchParams()
   if (params.node) qs.set('node', params.node)
   if (params.output) qs.set('output', params.output)
   if (params.offset !== undefined) qs.set('offset', String(params.offset))
   if (params.limit !== undefined) qs.set('limit', String(params.limit))
+  if (params.timestamp !== undefined) qs.set('timestamp', String(params.timestamp))
+  if (params.windowNanos !== undefined) qs.set('window_nanos', String(params.windowNanos))
   qs.set('include_data', 'true')
   const q = qs.toString()
   return fetchJson<RecordingEntriesResponse>(`/recording/${encodeURIComponent(id)}/entries?${q}`)
@@ -673,13 +686,15 @@ export function seekRecording(id: string, timestamp: number) {
 
 export function getRecordingEntries(
   id: string,
-  params: { node?: string; output?: string; offset?: number; limit?: number } = {}
+  params: RecordingEntriesParams = {}
 ) {
   const qs = new URLSearchParams()
   if (params.node) qs.set('node', params.node)
   if (params.output) qs.set('output', params.output)
   if (params.offset !== undefined) qs.set('offset', String(params.offset))
   if (params.limit !== undefined) qs.set('limit', String(params.limit))
+  if (params.timestamp !== undefined) qs.set('timestamp', String(params.timestamp))
+  if (params.windowNanos !== undefined) qs.set('window_nanos', String(params.windowNanos))
   const q = qs.toString()
   return fetchJson<RecordingEntriesResponse>(`/recording/${encodeURIComponent(id)}/entries${q ? '?' + q : ''}`)
 }

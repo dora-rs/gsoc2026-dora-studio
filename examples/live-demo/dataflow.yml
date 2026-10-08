@@ -20,6 +20,9 @@
 #     test_costmap_source test_simple_planner test_trajectory_executor \
 #     test_studio_console
 
+debug:
+  enable_debug_inspection: true
+
 nodes:
   - id: costmap_source
     path: nodes/costmap_source.py

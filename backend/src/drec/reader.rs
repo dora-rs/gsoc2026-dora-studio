@@ -153,7 +153,10 @@ fn read_header<R: Read>(r: &mut R) -> DrecResult<RecordingHeader> {
     let mut ver = [0u8; 2];
     r.read_exact(&mut ver)?;
     let version = u16::from_le_bytes(ver);
-    if version > 1 {
+    // Studio supports the v1 fixture and v2 files produced by dora 1.0.1.
+    // Both versions use the same header, entry framing, and footer layout;
+    // their event payload encoding differs but remains opaque to this reader.
+    if version == 0 || version > crate::drec::types::FORMAT_VERSION {
         return Err(DrecError::UnsupportedVersion(version));
     }
 
@@ -388,6 +391,25 @@ mod tests {
         assert_eq!(reader.header().start_nanos, header.start_nanos);
         assert_eq!(reader.header().dataflow_id, header.dataflow_id);
         assert_eq!(reader.header().descriptor_yaml, header.descriptor_yaml);
+        cleanup(&path);
+    }
+
+    #[test]
+    fn version_two_container_opens_with_unchanged_framing() {
+        let mut header = sample_header();
+        header.version = crate::drec::types::FORMAT_VERSION;
+        let entry = RecordEntry {
+            node_id: "camera".into(),
+            output_id: "frame".into(),
+            timestamp_offset_nanos: 42,
+            // v2 payload bytes are postcard-encoded upstream events. The
+            // container reader deliberately treats them as opaque.
+            event_bytes: vec![0x02, 0xff, 0x10],
+        };
+        let path = write_as_file(&header, &[entry.clone()]);
+        let mut reader = DrecReader::open(&path).expect("v2 container opens");
+        assert_eq!(reader.header().version, 2);
+        assert_eq!(reader.read_entry_at(reader.records_start()).unwrap(), entry);
         cleanup(&path);
     }
 
