@@ -217,6 +217,33 @@ async fn ingest_http(
         .into_response()
 }
 
+/// Spawns the OTLP/HTTP receiver on `DORA_STUDIO_OTLP_ADDR` (default 4318).
+///
+/// dora nodes push spans here via
+/// `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318`. Not fatal if the
+/// port is taken — the main app keeps serving.
+pub fn spawn(collector: OtelCollector) -> tokio::task::JoinHandle<()> {
+    let otlp_bind =
+        std::env::var("DORA_STUDIO_OTLP_ADDR").unwrap_or_else(|_| "127.0.0.1:4318".to_string());
+    tokio::spawn(async move {
+        let otlp_addr = match otlp_bind.parse::<std::net::SocketAddr>() {
+            Ok(addr) => addr,
+            Err(e) => {
+                eprintln!("OTLP receiver disabled (invalid DORA_STUDIO_OTLP_ADDR): {e}");
+                return;
+            }
+        };
+        let app = receiver_router(collector);
+        println!("OTLP receiver listening on http://{otlp_addr}");
+        if let Err(e) = axum::Server::bind(&otlp_addr)
+            .serve(app.into_make_service())
+            .await
+        {
+            eprintln!("OTLP receiver stopped: {e}");
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use prost::Message;
