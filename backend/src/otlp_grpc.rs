@@ -151,6 +151,32 @@ impl tower::Service<http::Request<BoxBody>> for OtelGrpcService {
     }
 }
 
+/// Spawns the OTLP gRPC receiver on `DORA_STUDIO_OTLP_GRPC_ADDR` (default
+/// 4317). dora pushes spans/metrics here when configured with
+/// `DORA_OTLP_ENDPOINT`. Not fatal if the port is taken.
+pub fn spawn(collector: OtelCollector) -> tokio::task::JoinHandle<()> {
+    let grpc_bind = std::env::var("DORA_STUDIO_OTLP_GRPC_ADDR")
+        .unwrap_or_else(|_| "127.0.0.1:4317".to_string());
+    tokio::spawn(async move {
+        let grpc_addr = match grpc_bind.parse::<std::net::SocketAddr>() {
+            Ok(addr) => addr,
+            Err(e) => {
+                eprintln!("OTLP gRPC receiver disabled (invalid DORA_STUDIO_OTLP_GRPC_ADDR): {e}");
+                return;
+            }
+        };
+        let svc = service(collector);
+        println!("OTLP gRPC receiver listening on http://{grpc_addr}");
+        if let Err(e) = tonic::transport::Server::builder()
+            .add_service(svc)
+            .serve(grpc_addr)
+            .await
+        {
+            eprintln!("OTLP gRPC receiver stopped: {e:?}");
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use tower::Service as _;
